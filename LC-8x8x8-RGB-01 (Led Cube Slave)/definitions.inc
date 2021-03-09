@@ -20,7 +20,7 @@
 ; INT0 used for interrupt when SPI Slave is selected
 .equ EICRA_INIT = (1 << ISC01)
 .equ EIMSK_INIT = (1 << INT0)
-		
+
 ; USART used in SPI master mode to load shift registers
 .equ UCSR0B_INIT = (1 << RXEN0) | (1 << TXEN0)
 .equ UCSR0C_INIT = (1 << UMSEL00) | (1 << UMSEL01)
@@ -39,16 +39,16 @@
 .equ DDRD_INIT = (1 << LATCH_PIN) | (1 << SHIFT_PIN) | (1 << ENABLE_PIN)
 
 ; Registers / RAM Addresses
-.def SPI_DATA_OUT_REGISTER 	= r2
-.def SPI_DATA_IN_REGISTER 	= r22
-.def SPI_STATE_REGISTER 	= r23
-.def SPI_DATA_COUNT_L 		= r24
-.def SPI_DATA_COUNT_H 		= r25
+.def SPI_DATA_OUT_REGISTER  = r2
+.def SPI_DATA_IN_REGISTER   = r22
+.def SPI_STATE_REGISTER     = r23
+.def SPI_DATA_COUNT_L       = r24
+.def SPI_DATA_COUNT_H       = r25
 
-.equ SPI_STATE_START	= 0
-.equ SPI_STATE_WRITE 	= 1
-.equ SPI_STATE_READ		= 2
-.equ SPI_STATE_END		= 3
+.equ SPI_STATE_START    = 0
+.equ SPI_STATE_WRITE    = 1
+.equ SPI_STATE_READ     = 2
+.equ SPI_STATE_END      = 3
 
 ; These are used to test SPI transfer reliability
 .equ SET_TEST_DATA_OPCODE = 1
