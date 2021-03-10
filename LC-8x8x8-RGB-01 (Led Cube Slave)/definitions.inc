@@ -53,7 +53,7 @@
 ; These are used to test SPI transfer reliability
 .equ SET_TEST_DATA_OPCODE = 1
 .equ GET_TEST_DATA_OPCODE = 2
-.equ TEST_DATA_SIZE = 1024
+.equ TEST_DATA_SIZE = 768
 
 ; These are used to test that INT pin works
 .equ SET_INT_HIGH_OPCODE = 3
