@@ -105,7 +105,7 @@ STATE_WRITE:    cpi SPI_STATE_REGISTER, SPI_STATE_WRITE
 STATE_START:    cpi SPI_STATE_REGISTER, SPI_STATE_START
                 brne STATE_END
 
-SET_TEST_DATA:  cpi SPI_DATA_IN_REGISTER, SET_TEST_DATA_OPCODE
+SET_TEST_DATA:  cpi SPI_DATA_IN_REGISTER, D01_SET_TEST_DATA
                 brne GET_TEST_DATA
 
                 ldi XL, low(TEST_DATA)
@@ -115,7 +115,7 @@ SET_TEST_DATA:  cpi SPI_DATA_IN_REGISTER, SET_TEST_DATA_OPCODE
                 ldi SPI_STATE_REGISTER, SPI_STATE_WRITE
                 reti
 
-GET_TEST_DATA:  cpi SPI_DATA_IN_REGISTER, GET_TEST_DATA_OPCODE
+GET_TEST_DATA:  cpi SPI_DATA_IN_REGISTER, D01_GET_TEST_DATA
                 brne SET_INT_HIGH
 
                 ldi XL, low(TEST_DATA)
@@ -125,21 +125,21 @@ GET_TEST_DATA:  cpi SPI_DATA_IN_REGISTER, GET_TEST_DATA_OPCODE
                 ldi SPI_STATE_REGISTER, SPI_STATE_READ
                 reti
 
-SET_INT_HIGH:   cpi SPI_DATA_IN_REGISTER, SET_INT_HIGH_OPCODE
+SET_INT_HIGH:   cpi SPI_DATA_IN_REGISTER, D01_SET_INT_HIGH
                 brne SET_INT_LOW
 
                 sbi INT_PORT, INT_PIN
                 ldi SPI_STATE_REGISTER, SPI_STATE_END
                 reti
 
-SET_INT_LOW:    cpi SPI_DATA_IN_REGISTER, SET_INT_LOW_OPCODE
+SET_INT_LOW:    cpi SPI_DATA_IN_REGISTER, D01_SET_INT_LOW
                 brne START_SR_TEST
 
                 cbi INT_PORT, INT_PIN
                 ldi SPI_STATE_REGISTER, SPI_STATE_END
                 reti
 
-START_SR_TEST:  cpi SPI_DATA_IN_REGISTER, START_SR_TEST_OPCODE
+START_SR_TEST:  cpi SPI_DATA_IN_REGISTER, D01_START_SR_TEST
                 brne START_SR_LOAD
 
                 set
@@ -148,7 +148,7 @@ START_SR_TEST:  cpi SPI_DATA_IN_REGISTER, START_SR_TEST_OPCODE
                 ldi SPI_STATE_REGISTER, SPI_STATE_END
                 reti
 
-START_SR_LOAD:  cpi SPI_DATA_IN_REGISTER, START_SR_LOAD_OPCODE
+START_SR_LOAD:  cpi SPI_DATA_IN_REGISTER, D01_START_SR_LOAD
                 brne INVALID_OPCODE
 
                 set
@@ -168,21 +168,21 @@ SR_TEST:        sbi INT_PORT, INT_PIN
                 ldi YL, low(TEST_DATA)
                 ldi YH, high(TEST_DATA)
 
-                ldd r16, Y + SR_TEST_PRESCALAR_OFFSET + 0
-                ldd r17, Y + SR_TEST_PRESCALAR_OFFSET + 1
+                ldd r16, Y + D01_SR_TEST_PRESCALAR_OFFSET + 0
+                ldd r17, Y + D01_SR_TEST_PRESCALAR_OFFSET + 1
 
                 sts UBRR0H, r17
                 sts UBRR0L, r16
 
-                ldd r7, Y + SR_TEST_COUNT_OFFSET + 0
-                ldd r8, Y + SR_TEST_COUNT_OFFSET + 1
-                ldd r9, Y + SR_TEST_COUNT_OFFSET + 2
+                ldd r7, Y + D01_SR_TEST_COUNT_OFFSET + 0
+                ldd r8, Y + D01_SR_TEST_COUNT_OFFSET + 1
+                ldd r9, Y + D01_SR_TEST_COUNT_OFFSET + 2
                 clr r10
                 clr r11
                 clr r12
 
-                ldi r16, SR_COUNT
-                ldi r19, SR_TEST_BYTE
+                ldi r16, D01_SR_COUNT
+                ldi r19, D01_SR_TEST_BYTE
 
 sr_test_loop1:  lds r15, UCSR0A
                 sbrs r15, UDRE0
@@ -232,9 +232,9 @@ sr_test_loop4a: sub r7, r16
                 sts UBRR0H, r16
                 sts UBRR0L, r16
 
-                std Y + SR_TEST_ERROR_COUNT_OFFSET + 0, r10
-                std Y + SR_TEST_ERROR_COUNT_OFFSET + 1, r11
-                std Y + SR_TEST_ERROR_COUNT_OFFSET + 2, r12
+                std Y + D01_SR_TEST_ERROR_COUNT_OFFSET + 0, r10
+                std Y + D01_SR_TEST_ERROR_COUNT_OFFSET + 1, r11
+                std Y + D01_SR_TEST_ERROR_COUNT_OFFSET + 2, r12
 
                 cbi INT_PORT, INT_PIN
                 ret
@@ -243,7 +243,7 @@ sr_test_loop4a: sub r7, r16
 
 SR_LOAD:        ldi YL, low(TEST_DATA)
                 ldi YH, high(TEST_DATA)
-                ldi r16, SR_COUNT
+                ldi r16, D01_SR_COUNT
 
 sr_load_loop:   lds r15, UCSR0A
                 sbrs r15, UDRE0
