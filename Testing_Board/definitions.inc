@@ -4,7 +4,6 @@
 
 .equ F_CPU     = 8000000
 .equ BAUD      = 38400
-.equ TESTS_MAX = 20
 
 .equ INT_PIN  = PB3
 .equ SS_PIN   = PB4
@@ -31,9 +30,6 @@
 .equ CLOSE_PORT_INIT  = 0
 
 .dseg
-.equ MENU_LINKS_SIZE = TESTS_MAX * 6
-MENU_LINKS: .byte MENU_LINKS_SIZE
-
 .equ PACKET_BUFFER_SIZE = D01_FRAME_SIZE
 PACKET_BUFFER:  .byte PACKET_BUFFER_SIZE
 

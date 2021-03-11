@@ -12,36 +12,26 @@ start:          ldi r16, low(RAMEND)
                 ldi r16, UCSRB_INIT
                 out UCSRB, r16
 
-loop:           ldi ZL, low(MENU << 1)
+loop:           rcall tx_crlf
+                ldi r16, '*'
+                ldi r17, 32
+                rcall tx_byte
+                dec r17
+                brne PC - 2
+                rcall tx_crlf
+
+                ldi ZL, low(MENU << 1)
                 ldi ZH, high(MENU << 1)
 
                 ldi r23, 'a'
-                ldi XL, low(MENU_LINKS)
-                ldi XH, high(MENU_LINKS)
 
-menu_entry:     lpm r24, Z+
+menu_choice:    lpm r24, Z+
                 lpm r25, Z+
 
                 adiw r25:r24, 0
-                breq print_title
-                adiw r25:r24, 1
-                breq wait_input
-                sbiw r25:r24, 1
-                rjmp print_choice
-
-print_title:    rcall tx_crlf
-                ldi r16, ' '
-                rcall tx_byte
-                ldi r16, ' '
-                rcall tx_byte
-                ldi r16, ' '
-                rcall tx_byte
-                ldi r16, ' '
-                rcall tx_byte
-                movw r3:r2, Z
-                rjmp print_string
-
-print_choice:   ldi r16, '['
+                breq wait_choice
+                
+                ldi r16, '['
                 rcall tx_byte
                 mov r16, r23
                 rcall tx_byte
@@ -49,123 +39,107 @@ print_choice:   ldi r16, '['
                 rcall tx_byte
                 ldi r16, ' '
                 rcall tx_byte
+                rcall tx_string_crlf
 
-                st X+, r2
-                st X+, r3
-                st X+, ZL
-                st X+, ZH
-                st X+, r24
-                st X+, r25
-                inc r23
-                rjmp print_string
-
-print_string:   rcall tx_string
-                rcall tx_crlf
                 sbrc ZL, 0
                 adiw Z, 1
-                rjmp menu_entry
+                inc r23
+                rjmp menu_choice
 
-wait_input:     rcall rx_byte
+wait_choice:    rcall rx_byte
                 cpi r16, 'a'
-                brlo wait_input
+                brlo wait_choice
                 cp r16, r23
-                brsh wait_input
+                brsh wait_choice
 
-                ldi XL, low(MENU_LINKS)
-                ldi XH, high(MENU_LINKS)
-                subi r16, 'a'
-                ldi r17, 6
-                mul r16, r17
-                add XL, r0
-                adc XH, r1
+                ldi ZL, low(MENU << 1)
+                ldi ZH, high(MENU << 1)
 
-                ldi YL, low(MENU_LINKS)
-                ldi YH, high(MENU_LINKS)
+find_choice:    cpi r16, 'a'
+                breq found_choice
 
+                adiw Z, 2
+                lpm r17, Z+
+                tst r17
+                brne PC - 2
+                sbrc ZL, 0
+                adiw Z, 1
+
+                dec r16
+                rjmp find_choice 
+ 
+found_choice:   lpm r2, Z+
+                lpm r3, Z+
+                movw r5:r4, Z
+                
+                rcall tx_crlf
                 ldi ZL, low(START_STRING << 1)
                 ldi ZH, high(START_STRING << 1)
-                rcall tx_crlf
                 rcall tx_string
+                movw Z, r5:r4
+                rcall tx_string_crlf
 
-                ld ZL, X+
-                ld ZH, X+
-                st Y+, ZL
-                st Y+, ZH
-                rcall tx_string
-
-                ldi ZL, low(SEPARATOR_STRING << 1)
-                ldi ZH, high(SEPARATOR_STRING << 1)
-                rcall tx_string
-
-                ld ZL, X+
-                ld ZH, X+
-                st Y+, ZL
-                st Y+, ZH
-                rcall tx_string
-                rcall tx_crlf
-                
-                ld ZL, X+
-                ld ZH, X+
+                movw Z, r3:r2
+                push r4
+                push r5
                 icall
+                pop r5
+                pop r4
                 rcall spi_close
 
-                ldi XL, low(MENU_LINKS)
-                ldi XH, high(MENU_LINKS)
-
+                rcall tx_crlf
                 ldi ZL, low(END_STRING << 1)
                 ldi ZH, high(END_STRING << 1)
-                rcall tx_crlf
                 rcall tx_string
+                movw Z, r5:r4
+                rcall tx_string_crlf
 
-                ld ZL, X+
-                ld ZH, X+
-                rcall tx_string
-
-                ldi ZL, low(SEPARATOR_STRING << 1)
-                ldi ZH, high(SEPARATOR_STRING << 1)
-                rcall tx_string
-
-                ld ZL, X+
-                ld ZH, X+
-                rcall tx_string
-                rcall tx_crlf
                 rjmp loop
 
 MENU:
-.dw 0           \ .db "Choose test to run", 0
-
-.dw 0           \ .db "LC-8x8x8-RGB-00 (Master)", 0
-.dw MASTER_COMM \ .db "Interface", 0
-
-.dw 0           \ .db "LC-8x8x8-RGB-01 (Led Cube Slave)", 0
-.dw LC_COMM     \ .db "Interface", 0
-.dw LC_SR       \ .db "Shift Registers", 0
-.dw LC_OUTPUTS  \ .db "Output, no LEDs installed", 0
-.dw LC_SLICE    \ .db "Output, LED slice installed", 0
-.dw LC_FULL     \ .db "Output, all LEDs installed", 0
-.dw -1
+.dw MASTER_COMM \ .db "LC-8x8x8-RGB-00 (Master) / Interface / Slave0", 0
+.dw MASTER_COMM \ .db "LC-8x8x8-RGB-00 (Master) / Interface / Slave1", 0
+.dw MASTER_COMM \ .db "LC-8x8x8-RGB-00 (Master) / Interface / Slave2", 0
+.dw MASTER_COMM \ .db "LC-8x8x8-RGB-00 (Master) / Interface / Slave3", 0
+.dw MASTER_COMM \ .db "LC-8x8x8-RGB-00 (Master) / Interface / Slave4", 0
+.dw MASTER_COMM \ .db "LC-8x8x8-RGB-00 (Master) / Interface / Slave5", 0
+.dw LC_COMM     \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Interface", 0
+.dw LC_SR       \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Shift Registers", 0
+.dw LC_OUTPUTS  \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, no LEDs installed", 0
+.dw LC_SLICE    \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 1 (back)", 0
+.dw LC_SLICE    \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 2", 0
+.dw LC_SLICE    \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 3", 0
+.dw LC_SLICE    \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 4", 0
+.dw LC_SLICE    \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 5", 0
+.dw LC_SLICE    \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 6", 0
+.dw LC_SLICE    \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 7", 0
+.dw LC_SLICE    \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 8 (front)", 0
+.dw LC_FULL     \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, all LEDs installed", 0
+.dw 0
 
 START_STRING:       .db "*** Started:  ", 0
 END_STRING:         .db "*** Finished: ", 0
-SEPARATOR_STRING:   .db " / ", 0
 
 ////////////////////////////////////////////////// Shared
-STEP_SEPARATOR: .db "... "
+STEP_SEPARATOR: .db "... ", 0
 tx_step:        rcall tx_string
                 ldi ZL, low(STEP_SEPARATOR << 1)
                 ldi ZH, high(STEP_SEPARATOR << 1)
                 rjmp tx_string
 
-PASS_STRING: .db "PASS"
+PASS_STRING: .db "PASS", 0
 tx_pass:        ldi ZL, low(PASS_STRING << 1)
                 ldi ZH, high(PASS_STRING << 1)
                 rcall tx_string
                 rjmp tx_crlf
 
-FAIL_STRING: .db "FAIL"
+FAIL_STRING: .db "FAIL", 0
 tx_fail:        ldi ZL, low(FAIL_STRING << 1)
                 ldi ZH, high(FAIL_STRING << 1)
                 rcall tx_string
+                rjmp tx_crlf
+
+tx_string_crlf: rcall tx_string
                 rjmp tx_crlf
 
 tx_string:      lpm r16, Z+
@@ -190,20 +164,20 @@ rx_byte:        sbis UCSRA, RXC
                 in r16, UDR
                 ret
 
-spi_master:     ldi r16, MASTER_SPCR_INIT
-                out SPCR, r16
-                ldi r16, MASTER_PORT_INIT
+spi_master:     ldi r16, MASTER_PORT_INIT
                 out PORT, r16
                 ldi r16, MASTER_DDR_INIT
                 out DDR, r16
+                ldi r16, MASTER_SPCR_INIT
+                out SPCR, r16
                 ret
 
-spi_slave:      ldi r16, SLAVE_SPCR_INIT
-                out SPCR, r16
-                ldi r16, SLAVE_PORT_INIT
+spi_slave:      ldi r16, SLAVE_PORT_INIT
                 out PORT, r16
                 ldi r16, SLAVE_DDR_INIT
                 out DDR, r16
+                ldi r16, SLAVE_SPCR_INIT
+                out SPCR, r16
                 ret
 
 spi_close:      ldi r16, CLOSE_SPCR_INIT
@@ -229,7 +203,7 @@ tx_slave:       cbi PORT, SS_PIN
                 brne PC - 3
 
 tx_slave1:      adiw Z, 0
-                brne tx_slave2
+                breq tx_slave2
 
                 rcall txrx_spi ; dummy for slave to have enough time to load response
 
@@ -239,7 +213,7 @@ tx_slave1:      adiw Z, 0
                 rcall txrx_spi
                 st X+, r16
                 sbiw Z, 1
-                brne PC - 1
+                brne PC - 3
 
 tx_slave2:      sbi PORT, SS_PIN
                 ret
@@ -258,8 +232,8 @@ MASTER_COMM:    ldi r16, 'A'
 
 ////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave)
 
-LC_S0: .db "Sending and getting big packet"
-LC_S1: .db "Checking INT pin"
+LC_S0: .db "TX & RX big packet and check content matches", 0
+LC_S1: .db "Check INT pin toggle", 0
 
 LC_COMM:        rcall spi_master
                 
@@ -277,7 +251,7 @@ LC_COMM:        rcall spi_master
                 inc r16
                 cp XL, r24
                 cpc XH, r25
-                brlo PC - 3
+                brlo PC - 4
 
                 ldi r16, D01_SET_TEST_DATA
                 ldi YL, low(PACKET_BUFFER_SIZE)
