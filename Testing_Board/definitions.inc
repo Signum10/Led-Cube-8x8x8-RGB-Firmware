@@ -2,8 +2,8 @@
 .include "../Shared/m16def.inc"
 .include "../Shared/definitions.inc"
 
-.equ F_CPU     = 8000000
-.equ BAUD      = 38400
+.equ F_CPU    = 8000000
+.equ BAUD     = 38400
 
 .equ INT_PIN  = PB3
 .equ SS_PIN   = PB4

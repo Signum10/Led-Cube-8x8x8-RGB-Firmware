@@ -2,7 +2,7 @@
 .include "../Shared/m328Pdef.inc"
 .include "../Shared/definitions.inc"
 
-.equ F_CPU = 16000000
+.equ F_CPU = D01_F_CPU
 
 .equ INT_PIN        = PB0
 .equ INT_PORT       = PORTB
