@@ -2,7 +2,8 @@
 .include "../Shared/m328Pdef.inc"
 .include "../Shared/definitions.inc"
 
-.equ F_CPU = D01_F_CPU
+.equ F_CPU    = D01_F_CPU
+.equ COMMON_K = 1 ; 1 if LEDs have common cathode, 0 for common anode
 
 .equ INT_PIN        = PB0
 .equ INT_PORT       = PORTB

@@ -84,9 +84,14 @@ STATE_READ:     cpi SPI_STATE_REGISTER, SPI_STATE_READ
                 brne STATE_WRITE
 
                 ld SPI_DATA_OUT_REGISTER, X+
-                sbiw SPI_DATA_COUNT_H:SPI_DATA_COUNT_L, 1
+
+state_r_w:      sbiw SPI_DATA_COUNT_H:SPI_DATA_COUNT_L, 1
                 breq PC + 2
                 reti
+
+                adiw Z, 0
+                breq PC + 2
+                set
 
                 ldi SPI_STATE_REGISTER, SPI_STATE_END
                 reti
@@ -95,166 +100,237 @@ STATE_WRITE:    cpi SPI_STATE_REGISTER, SPI_STATE_WRITE
                 brne STATE_START
 
                 st X+, SPI_DATA_IN_REGISTER
-                sbiw SPI_DATA_COUNT_H:SPI_DATA_COUNT_L, 1
-                breq PC + 2
-                reti
-
-                ldi SPI_STATE_REGISTER, SPI_STATE_END
-                reti
+                rjmp state_r_w
 
 STATE_START:    cpi SPI_STATE_REGISTER, SPI_STATE_START
                 brne STATE_END
 
-SET_TEST_DATA:  cpi SPI_DATA_IN_REGISTER, D01_SET_TEST_DATA
-                brne GET_TEST_DATA
-
-                ldi XL, low(TEST_DATA)
-                ldi XH, high(TEST_DATA)
-                ldi SPI_DATA_COUNT_L, low(TEST_DATA_SIZE)
-                ldi SPI_DATA_COUNT_H, high(TEST_DATA_SIZE)
-                ldi SPI_STATE_REGISTER, SPI_STATE_WRITE
-                reti
-
-GET_TEST_DATA:  cpi SPI_DATA_IN_REGISTER, D01_GET_TEST_DATA
-                brne SET_INT_HIGH
-
-                ldi XL, low(TEST_DATA)
-                ldi XH, high(TEST_DATA)
-                ldi SPI_DATA_COUNT_L, low(TEST_DATA_SIZE)
-                ldi SPI_DATA_COUNT_H, high(TEST_DATA_SIZE)
                 ldi SPI_STATE_REGISTER, SPI_STATE_READ
-                reti
+                sbrc SPI_DATA_IN_REGISTER, 7
+                ldi SPI_STATE_REGISTER, SPI_STATE_WRITE
+                andi SPI_DATA_IN_REGISTER, 0x7F
 
-SET_INT_HIGH:   cpi SPI_DATA_IN_REGISTER, D01_SET_INT_HIGH
-                brne SET_INT_LOW
-
-                sbi INT_PORT, INT_PIN
+                cpi SPI_DATA_IN_REGISTER, D01_LAST_OPCODE
+                brlo PC + 3
                 ldi SPI_STATE_REGISTER, SPI_STATE_END
                 reti
 
-SET_INT_LOW:    cpi SPI_DATA_IN_REGISTER, D01_SET_INT_LOW
-                brne START_SR_TEST
+                ldi ZL, low(OPCODES << 1)
+                ldi ZH, high(OPCODES << 1)
+                lsl SPI_DATA_IN_REGISTER
+                lsl SPI_DATA_IN_REGISTER
+                ldi SPI_DATA_COUNT_H, 0
+                add ZL, SPI_DATA_IN_REGISTER
+                adc ZH, SPI_DATA_COUNT_H
 
-                cbi INT_PORT, INT_PIN
-                ldi SPI_STATE_REGISTER, SPI_STATE_END
-                reti
+                lpm SPI_DATA_COUNT_L, Z+
+                lpm SPI_DATA_COUNT_H, Z+
+                lpm XL, Z+
+                lpm XH, Z+
+                movw Z, X
+                
+                ldi XL, low(TEST_DATA)
+                ldi XH, high(TEST_DATA)
 
-START_SR_TEST:  cpi SPI_DATA_IN_REGISTER, D01_START_SR_TEST
-                brne START_SR_LOAD
-
-                set
-                ldi ZL, low(SR_TEST >> 1)
-                ldi ZH, high(SR_TEST >> 1)
-                ldi SPI_STATE_REGISTER, SPI_STATE_END
-                reti
-
-START_SR_LOAD:  cpi SPI_DATA_IN_REGISTER, D01_START_SR_LOAD
-                brne INVALID_OPCODE
-
-                set
-                ldi ZL, low(SR_LOAD >> 1)
-                ldi ZH, high(SR_LOAD >> 1)
-                ldi SPI_STATE_REGISTER, SPI_STATE_END
-                reti
-
-INVALID_OPCODE: ldi SPI_STATE_REGISTER, SPI_STATE_END
 STATE_END:      reti
+
+OPCODES:
+.dw D01_TEST_SET_DATA_SIZE, 0
+.dw D01_TEST_GET_DATA_SIZE, 0
+.dw D01_TEST_SET_INT_DATA_SIZE, TEST_SET_INT
+.dw D01_TEST_SET_SR_DATA_SIZE, TEST_SET_SR
+.dw D01_TEST_GET_SR_DATA_SIZE, 0
+.dw D01_TEST_SET_LEDS_DATA_SIZE, TEST_SET_LEDS
 
 //////////////////////////////////////////////////
 
-SR_TEST:        sbi INT_PORT, INT_PIN
+TEST_SET_INT:   lds r16, TEST_DATA + D01_TEST_SET_INT_STATE_OFFSET
+                
+                tst r16
+                brne PC + 3
+                cbi INT_PORT, INT_PIN
+                ret
+
+                sbi INT_PORT, INT_PIN
+                ret 
+
+//////////////////////////////////////////////////
+
+TEST_SET_SR:    sbi INT_PORT, INT_PIN
                 sbi ENABLE_PORT, ENABLE_PIN
 
                 ldi YL, low(TEST_DATA)
                 ldi YH, high(TEST_DATA)
 
-                ldd r16, Y + D01_SR_TEST_PRESCALAR_OFFSET + 0
-                ldd r17, Y + D01_SR_TEST_PRESCALAR_OFFSET + 1
+                ldd r16, Y + D01_TEST_SET_SR_PRESCALAR_OFFSET + 0
+                ldd r17, Y + D01_TEST_SET_SR_PRESCALAR_OFFSET + 1
 
                 sts UBRR0H, r17
                 sts UBRR0L, r16
 
-                ldd r7, Y + D01_SR_TEST_COUNT_OFFSET + 0
-                ldd r8, Y + D01_SR_TEST_COUNT_OFFSET + 1
-                ldd r9, Y + D01_SR_TEST_COUNT_OFFSET + 2
+                ldd r7, Y + D01_TEST_SET_SR_COUNT_OFFSET + 0
+                ldd r8, Y + D01_TEST_SET_SR_COUNT_OFFSET + 1
+                ldd r9, Y + D01_TEST_SET_SR_COUNT_OFFSET + 2
                 clr r10
                 clr r11
                 clr r12
 
-                ldi r16, D01_SR_COUNT
-                ldi r19, D01_SR_TEST_BYTE
+                ldi r16, ((D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE * D01_LED_COLORS) / 8) + (D01_CUBE_EDGE_SIZE / 8)
+                ldi r19, D01_TEST_SET_SR_TX_BYTE
 
-sr_test_loop1:  lds r15, UCSR0A
+set_sr_loop1:   lds r15, UCSR0A
                 sbrs r15, UDRE0
-                rjmp sr_test_loop1
+                rjmp set_sr_loop1
 
                 sts UDR0, r17
 
                 dec r16
-                brne sr_test_loop1
+                brne set_sr_loop1
 
-sr_test_loop2:  lds r17, UCSR0A
+set_sr_loop2:   lds r17, UCSR0A
                 sbrs r17, TXC0
-                rjmp sr_test_loop2
+                rjmp set_sr_loop2
 
-sr_test_loop3:  lds r17, UCSR0A
+set_sr_loop3:   lds r17, UCSR0A
                 sbrs r17, RXC0
-                rjmp sr_test_cont
+                rjmp set_sr_cont
 
                 lds r17, UDR0
-                rjmp sr_test_loop3
+                rjmp set_sr_loop3
 
-sr_test_cont:   ldi r16, low(1)
+set_sr_cont:    ldi r16, low(1)
                 ldi r17, byte2(1)
                 ldi r18, byte3(1)
 
-sr_test_loop4:  lds r15, UCSR0A
+set_sr_loop4:   lds r15, UCSR0A
                 sbrc r15, UDRE0
                 sts UDR0, r19
 
                 sbrs r15, RXC0
-                rjmp sr_test_loop4
+                rjmp set_sr_loop4
 
                 lds r15, UDR0
                 cp r15, r19
-                breq sr_test_loop4a
+                breq set_sr_loop4a
 
                 add r10, r16
                 adc r11, r17
                 adc r12, r18
 
-sr_test_loop4a: sub r7, r16
+set_sr_loop4a:  sub r7, r16
                 sbc r8, r17
                 sbc r9, r18
-                brne sr_test_loop4
+                brne set_sr_loop4
 
                 clr r16
                 sts UBRR0H, r16
                 sts UBRR0L, r16
 
-                std Y + D01_SR_TEST_ERROR_COUNT_OFFSET + 0, r10
-                std Y + D01_SR_TEST_ERROR_COUNT_OFFSET + 1, r11
-                std Y + D01_SR_TEST_ERROR_COUNT_OFFSET + 2, r12
+                std Y + D01_TEST_SET_SR_COUNT_OFFSET + 0, r10
+                std Y + D01_TEST_SET_SR_COUNT_OFFSET + 1, r11
+                std Y + D01_TEST_SET_SR_COUNT_OFFSET + 2, r12
 
                 cbi INT_PORT, INT_PIN
                 ret
 
 //////////////////////////////////////////////////
 
-SR_LOAD:        ldi YL, low(TEST_DATA)
+TEST_SET_LEDS:  ldi YL, low(TEST_DATA)
                 ldi YH, high(TEST_DATA)
-                ldi r16, D01_SR_COUNT
+                
+                ldd r16, Y + D01_TEST_SET_LEDS_START_LED_OFFSET
+                cpi r16, D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE
+                brlo PC + 2
+                ret
 
-sr_load_loop:   lds r15, UCSR0A
-                sbrs r15, UDRE0
-                rjmp sr_load_loop
+                ldd r17, Y + D01_TEST_SET_LEDS_END_LED_OFFSET
+                cpi r17, D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE
+                brlo PC + 2
+                ret
 
-                ld r15, Y+
-                sts UDR0, r15
+                cp r17, r16
+                brsh PC + 2
+                ret
 
-                dec r16
-                brne sr_load_loop
-        
+                ldd r18, Y + D01_TEST_SET_LEDS_COLOR_OFFSET
+                cpi r18, D01_TEST_SET_LEDS_COLOR_COUNT
+                brlo PC + 2
+                ret
+
+                ldd r19, Y + D01_TEST_SET_LEDS_LEVEL_OFFSET
+                cpi r19, D01_CUBE_EDGE_SIZE + 1
+                brlo PC + 2
+                ret
+
+                swap r18
+                lsl r18
+
+                clr r15
+
+set_leds_loop:  clr r11
+                cp r15, r16
+                brlo PC + 4
+                cp r17, r15
+                brlo PC + 2
+                mov r11, r18
+
+                .if COMMON_K == 1
+                com r11
+                .endif
+
+                ldi r20, D01_LED_COLORS
+
+                lsl r11
+                rol r12
+                rol r13
+                rol r14
+                dec r20
+                brne PC - 5
+
+                inc r15
+                ldi r20, D01_CUBE_EDGE_SIZE - 1
+                and r20, r15
+                brne set_leds_loop
+
+                ldi r20, D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE
+                cp r20, r15
+                breq set_leds_end
+
+                lds r11, UCSR0A
+                sbrs r11, UDRE0
+                rjmp PC - 3
+                sts UDR0, r14 
+
+                lds r11, UCSR0A
+                sbrs r11, UDRE0
+                rjmp PC - 3
+                sts UDR0, r13
+
+                lds r11, UCSR0A
+                sbrs r11, UDRE0
+                rjmp PC - 3
+                sts UDR0, r12
+
+                rjmp set_leds_loop
+
+set_leds_end:   ldi r16, 1 << (D01_CUBE_EDGE_SIZE - 1)
+
+                tst r19
+                breq PC + 4
+
+                lsr r16
+                dec r19
+                brne PC - 2
+
+                .if COMMON_K == 0
+                com r16
+                .endif
+
+                lds r11, UCSR0A
+                sbrs r11, UDRE0
+                rjmp PC - 3
+                sts UDR0, r16
+
                 sbi LATCH_PORT, LATCH_PIN
                 cbi ENABLE_PORT, ENABLE_PIN
                 cbi LATCH_PORT, LATCH_PIN

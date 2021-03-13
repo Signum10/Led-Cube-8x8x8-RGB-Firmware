@@ -234,22 +234,22 @@ spi_close:      ldi r16, CLOSE_SPCR_INIT
                 out PORT, r16
                 ret
 
-tx_slave:       cbi PORT, SS_PIN
+tx_slave_set:   cbi PORT, SS_PIN
                 rcall txrx_spi
-                
-                adiw Y, 0
-                breq tx_slave1
 
                 ldi XL, low(PACKET_BUFFER)
                 ldi XH, high(PACKET_BUFFER)
 
                 ld r16, X+
                 rcall txrx_spi
-                sbiw Y, 1
+                sbiw r25:r24, 1
                 brne PC - 3
 
-tx_slave1:      adiw Z, 0
-                breq tx_slave2
+                sbi PORT, SS_PIN
+                ret
+
+tx_slave_get:   cbi PORT, SS_PIN
+                rcall txrx_spi
 
                 rcall txrx_spi ; dummy for slave to have enough time to load response
 
@@ -258,10 +258,10 @@ tx_slave1:      adiw Z, 0
 
                 rcall txrx_spi
                 st X+, r16
-                sbiw Z, 1
+                sbiw r25:r24, 1
                 brne PC - 3
 
-tx_slave2:      sbi PORT, SS_PIN
+                sbi PORT, SS_PIN
                 ret
 
 txrx_spi:       out SPDR, r16
@@ -312,13 +312,13 @@ step_ret_fail:  clt
                 ldi ZH, high(FAIL_STRING << 1)
                 rjmp tx_string_crlf
 
-////////////////////////////////////////////////// LC-8x8x8-RGB-00 (Master)
+////////////////////////////////////////////////// LC-8x8x8-RGB-00 (Master) / Interface
 
 MASTER_COMM:    ldi r16, 'A'
                 rcall tx_byte
                 ret
 
-////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave)
+////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave) / Interface
 
 LC_COMM_STEPS:
 .dw LC_COMM_S1 \ .db "TX & RX big packet @ 250 kHz", 0
@@ -357,8 +357,8 @@ LC_COMM_S4:     cbi SPSR, SPI2X
 
 LC_COMM_S1_4:   ldi XL, low(PACKET_BUFFER)
                 ldi XH, high(PACKET_BUFFER)
-                ldi r24, low(PACKET_BUFFER + PACKET_BUFFER_SIZE)
-                ldi r25, high(PACKET_BUFFER + PACKET_BUFFER_SIZE)
+                ldi r24, low(PACKET_BUFFER + D01_TEST_SET_DATA_SIZE)
+                ldi r25, high(PACKET_BUFFER + D01_TEST_SET_DATA_SIZE)
                 clr r16
 
                 st X+, r16
@@ -367,24 +367,20 @@ LC_COMM_S1_4:   ldi XL, low(PACKET_BUFFER)
                 cpc XH, r25
                 brlo PC - 4
 
-                ldi r16, D01_SET_TEST_DATA
-                ldi YL, low(PACKET_BUFFER_SIZE)
-                ldi YH, high(PACKET_BUFFER_SIZE)
-                ldi ZL, 0
-                ldi ZH, 0
-                rcall tx_slave
+                ldi r16, D01_TEST_SET
+                ldi r24, low(D01_TEST_SET_DATA_SIZE)
+                ldi r25, high(D01_TEST_SET_DATA_SIZE)
+                rcall tx_slave_set
 
-                ldi r16, D01_GET_TEST_DATA
-                ldi YL, 0
-                ldi YH, 0
-                ldi ZL, low(PACKET_BUFFER_SIZE)
-                ldi ZH, high(PACKET_BUFFER_SIZE)
-                rcall tx_slave
+                ldi r16, D01_TEST_GET
+                ldi r24, low(D01_TEST_GET_DATA_SIZE)
+                ldi r25, high(D01_TEST_GET_DATA_SIZE)
+                rcall tx_slave_get
 
                 ldi XL, low(PACKET_BUFFER)
                 ldi XH, high(PACKET_BUFFER)
-                ldi r24, low(PACKET_BUFFER + PACKET_BUFFER_SIZE)
-                ldi r25, high(PACKET_BUFFER + PACKET_BUFFER_SIZE)
+                ldi r24, low(PACKET_BUFFER + D01_TEST_GET_DATA_SIZE)
+                ldi r25, high(PACKET_BUFFER + D01_TEST_GET_DATA_SIZE)
                 clr r16
 
                 ld r17, X+
@@ -398,27 +394,29 @@ LC_COMM_S1_4:   ldi XL, low(PACKET_BUFFER)
 
                 rjmp step_ret_pass
 
-LC_COMM_S5:     ldi r16, D01_SET_INT_HIGH
-                ldi YL, 0
-                ldi YH, 0
-                ldi ZL, 0
-                ldi ZH, 0
-                rcall tx_slave
+LC_COMM_S5:     ldi r16, 1
+                sts PACKET_BUFFER + D01_TEST_SET_INT_STATE_OFFSET, r16
+                ldi r16, D01_TEST_SET_INT
+                ldi r24, low(D01_TEST_SET_INT_DATA_SIZE)
+                ldi r25, high(D01_TEST_SET_INT_DATA_SIZE)
+                rcall tx_slave_set
 
                 sbis PINREG, INT_PIN
                 rjmp step_ret_fail
 
-                ldi r16, D01_SET_INT_LOW
-                ldi YL, 0
-                ldi YH, 0
-                ldi ZL, 0
-                ldi ZH, 0
-                rcall tx_slave
+                ldi r16, 0
+                sts PACKET_BUFFER + D01_TEST_SET_INT_STATE_OFFSET, r16
+                ldi r16, D01_TEST_SET_INT
+                ldi r24, low(D01_TEST_SET_INT_DATA_SIZE)
+                ldi r25, high(D01_TEST_SET_INT_DATA_SIZE)
+                rcall tx_slave_set
 
                 sbic PINREG, INT_PIN
                 rjmp step_ret_fail
 
                 rjmp step_ret_pass
+
+////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave) / Shift Registers
 
 LC_SR_STEPS:
 .dw LC_SR_S1 \ .db "Load and read shift registers @ 250 kHz for 1 minute", 0
@@ -471,27 +469,16 @@ LC_SR_S5:       ldi r16, low((D01_F_CPU / (2 * 4000000)) - 1)
                 ldi r20, byte3(60 * (4000000 / 8))
                 rjmp LC_SR_S1_5
 
-LC_SR_S1_5:     ldi YL, low(PACKET_BUFFER)
-                ldi YH, high(PACKET_BUFFER)
-                std Y + D01_SR_TEST_PRESCALAR_OFFSET + 0, r16
-                std Y + D01_SR_TEST_PRESCALAR_OFFSET + 1, r17
-                std Y + D01_SR_TEST_COUNT_OFFSET + 0, r18
-                std Y + D01_SR_TEST_COUNT_OFFSET + 1, r19
-                std Y + D01_SR_TEST_COUNT_OFFSET + 2, r20
+LC_SR_S1_5:     sts PACKET_BUFFER + D01_TEST_SET_SR_PRESCALAR_OFFSET + 0, r16
+                sts PACKET_BUFFER + D01_TEST_SET_SR_PRESCALAR_OFFSET + 1, r17
+                sts PACKET_BUFFER + D01_TEST_SET_SR_COUNT_OFFSET + 0, r18
+                sts PACKET_BUFFER + D01_TEST_SET_SR_COUNT_OFFSET + 0, r19
+                sts PACKET_BUFFER + D01_TEST_SET_SR_COUNT_OFFSET + 0, r20
 
-                ldi r16, D01_SET_TEST_DATA
-                ldi YL, low(D01_SR_TEST_DATA_SIZE)
-                ldi YH, high(D01_SR_TEST_DATA_SIZE)
-                ldi ZL, 0
-                ldi ZH, 0
-                rcall tx_slave
-
-                ldi r16, D01_START_SR_TEST
-                ldi YL, 0
-                ldi YH, 0
-                ldi ZL, 0
-                ldi ZH, 0
-                rcall tx_slave
+                ldi r16, D01_TEST_SET_SR
+                ldi r24, low(D01_TEST_SET_SR_DATA_SIZE)
+                ldi r25, high(D01_TEST_SET_SR_DATA_SIZE)
+                rcall tx_slave_set
 
                 ldi r16, 0
                 dec r16
@@ -503,27 +490,23 @@ LC_SR_S1_5:     ldi YL, low(PACKET_BUFFER)
                 sbic PINREG, INT_PIN
                 rjmp PC - 1
 
-                ldi r16, D01_GET_TEST_DATA
-                ldi YL, 0
-                ldi YH, 0
-                ldi ZL, low(D01_SR_TEST_DATA_SIZE)
-                ldi ZH, high(D01_SR_TEST_DATA_SIZE)
-                rcall tx_slave
-                
-                ldi YL, low(PACKET_BUFFER)
-                ldi YH, high(PACKET_BUFFER)
-                ldd r17, Y + D01_SR_TEST_ERROR_COUNT_OFFSET + 0
-                ldd r18, Y + D01_SR_TEST_ERROR_COUNT_OFFSET + 1
-                ldd r19, Y + D01_SR_TEST_ERROR_COUNT_OFFSET + 2
+                ldi r16, D01_TEST_GET_SR
+                ldi r24, low(D01_TEST_GET_SR_DATA_SIZE)
+                ldi r25, high(D01_TEST_GET_SR_DATA_SIZE)
+                rcall tx_slave_get
+
+                lds r17, PACKET_BUFFER + D01_TEST_GET_SR_ERROR_COUNT_OFFSET + 0
+                lds r18, PACKET_BUFFER + D01_TEST_GET_SR_ERROR_COUNT_OFFSET + 1
+                lds r19, PACKET_BUFFER + D01_TEST_GET_SR_ERROR_COUNT_OFFSET + 2
                 
                 rcall tx_24_bit_int
                 ldi ZL, low(LC_SR_COUNT_S << 1)
                 ldi ZH, high(LC_SR_COUNT_S << 1)
                 rcall tx_string
 
-                ldd r17, Y + D01_SR_TEST_ERROR_COUNT_OFFSET + 0
-                ldd r18, Y + D01_SR_TEST_ERROR_COUNT_OFFSET + 1
-                ldd r19, Y + D01_SR_TEST_ERROR_COUNT_OFFSET + 2
+                lds r17, PACKET_BUFFER + D01_TEST_GET_SR_ERROR_COUNT_OFFSET + 0
+                lds r18, PACKET_BUFFER + D01_TEST_GET_SR_ERROR_COUNT_OFFSET + 1
+                lds r19, PACKET_BUFFER + D01_TEST_GET_SR_ERROR_COUNT_OFFSET + 2
 
                 clr r16
                 cp r17, r16
@@ -533,14 +516,365 @@ LC_SR_S1_5:     ldi YL, low(PACKET_BUFFER)
                 rjmp step_ret_fail
                 rjmp step_ret_pass
 
-LC_OUTPUTS:     ldi r16, 'Y'
-                rcall tx_byte
+////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave) / Output, no LEDs installed
+////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice
+////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave) / Output, all LEDs installed
+
+LC_SLICE_MENU:
+.dw lc_slice_sel0 \ .db '0', "select slice 0 (back)", 0
+.dw lc_slice_sel1 \ .db '1', "select slice 1", 0
+.dw lc_slice_sel2 \ .db '2', "select slice 2", 0
+.dw lc_slice_sel3 \ .db '3', "select slice 3", 0
+.dw lc_slice_sel4 \ .db '4', "select slice 4", 0
+.dw lc_slice_sel5 \ .db '5', "select slice 5", 0
+.dw lc_slice_sel6 \ .db '6', "select slice 6", 0
+.dw lc_slice_sel7 \ .db '7', "select slice 7 (front)", 0
+
+LC_OUTPUTS_MENU:
+.dw lc_out_prev \ .db 'p', "previous step", 0
+.dw lc_out_next \ .db 'n', "next step", 0
+.dw lc_out_quit \ .db 'q', "quit", 0
+.dw 0
+
+LC_OUTPUTS:     ldi r16, low(D01_CUBE_EDGE_SIZE + (D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE) * 4)
+                ldi r17, high(D01_CUBE_EDGE_SIZE + (D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE) * 4)
+                ldi r18, low(lc_outputs_tr)
+                ldi r19, high(lc_outputs_tr)
+                ldi ZL, low(LC_OUTPUTS_MENU << 1)
+                ldi ZH, high(LC_OUTPUTS_MENU << 1)
+                rjmp lc_out
+
+lc_outputs_tr:  ldi r16, low(D01_CUBE_EDGE_SIZE)
+                ldi r17, high(D01_CUBE_EDGE_SIZE)
+                cp r24, r16
+                cpc r25, r17
+                brsh PC + 6
+
+                mov r19, r16
+                clr r16
+                clr r17
+                ldi r18, D01_TEST_SET_LEDS_COLOR_RED
                 ret
 
-LC_SLICE:       ldi r16, 'Z'
-                rcall tx_byte
+                sbiw r25:r24, D01_CUBE_EDGE_SIZE
+ 
+                mov r18, r24
+                andi r18, 0x03
+
+                lsr r24
+                lsr r24
+                mov r16, r24
+                mov r17, r24
+                ldi r19, D01_CUBE_EDGE_SIZE - 1
+
+                cpi r18, 0
+                brne PC + 3
+                ldi r18, D01_TEST_SET_LEDS_COLOR_RED
                 ret
 
-LC_FULL:        ldi r16, 'W'
+                cpi r18, 1
+                brne PC + 3
+                ldi r18, D01_TEST_SET_LEDS_COLOR_GREEN
+                ret
+
+                cpi r18, 2
+                brne PC + 3
+                ldi r18, D01_TEST_SET_LEDS_COLOR_BLUE
+                ret
+
+                ldi r18, D01_TEST_SET_LEDS_COLOR_WHITE
+                ret
+
+LC_SLICE:       clr r2
+
+                ldi r16, low((D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4)
+                ldi r17, high((D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4)
+                ldi r18, low(lc_slice_tr)
+                ldi r19, high(lc_slice_tr)
+                ldi ZL, low(LC_SLICE_MENU << 1)
+                ldi ZH, high(LC_SLICE_MENU << 1)
+                rjmp lc_out
+
+lc_slice_sel0:  ldi r16, 0 * D01_CUBE_EDGE_SIZE
+                mov r2, r16
+                rjmp lc_out_change
+
+lc_slice_sel1:  ldi r16, 1 * D01_CUBE_EDGE_SIZE
+                mov r2, r16
+                rjmp lc_out_change
+
+lc_slice_sel2:  ldi r16, 2 * D01_CUBE_EDGE_SIZE
+                mov r2, r16
+                rjmp lc_out_change
+
+lc_slice_sel3:  ldi r16, 3 * D01_CUBE_EDGE_SIZE
+                mov r2, r16
+                rjmp lc_out_change
+
+lc_slice_sel4:  ldi r16, 4 * D01_CUBE_EDGE_SIZE
+                mov r2, r16
+                rjmp lc_out_change
+
+lc_slice_sel5:  ldi r16, 5 * D01_CUBE_EDGE_SIZE
+                mov r2, r16
+                rjmp lc_out_change
+
+lc_slice_sel6:  ldi r16, 6 * D01_CUBE_EDGE_SIZE
+                mov r2, r16
+                rjmp lc_out_change
+
+lc_slice_sel7:  ldi r16, 7 * D01_CUBE_EDGE_SIZE
+                mov r2, r16
+                rjmp lc_out_change
+
+lc_slice_tr:    mov r18, r24
+                andi r18, 0x03
+
+                lsr r25
+                ror r24
+                lsr r25
+                ror r24
+
+                ldi r19, -1
+
+                inc r19
+                subi r24, D01_CUBE_EDGE_SIZE + 1
+                brcc PC - 2
+                
+                subi r24, -(D01_CUBE_EDGE_SIZE + 1)
+                
+                cpi r24, D01_CUBE_EDGE_SIZE
+                breq PC + 4
+                mov r16, r24
+                mov r17, r24
+                rjmp PC + 3
+                ldi r16, 0
+                ldi r17, D01_CUBE_EDGE_SIZE - 1
+
+                add r16, r2
+                add r17, r2
+
+                cpi r18, 0
+                brne PC + 3
+                ldi r18, D01_TEST_SET_LEDS_COLOR_RED
+                ret
+
+                cpi r18, 1
+                brne PC + 3
+                ldi r18, D01_TEST_SET_LEDS_COLOR_GREEN
+                ret
+
+                cpi r18, 2
+                brne PC + 3
+                ldi r18, D01_TEST_SET_LEDS_COLOR_BLUE
+                ret
+
+                ldi r18, D01_TEST_SET_LEDS_COLOR_WHITE
+                ret
+
+LC_FULL:        ldi r16, low((D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4)
+                ldi r17, high((D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4)
+                ldi r18, low(lc_full_tr)
+                ldi r19, high(lc_full_tr)
+                ldi ZL, low(LC_OUTPUTS_MENU << 1)
+                ldi ZH, high(LC_OUTPUTS_MENU << 1)
+                rjmp lc_out
+
+lc_full_tr:     mov r18, r24
+                andi r18, 0x03
+
+                lsr r25
+                ror r24
+                lsr r25
+                ror r24
+
+                ldi r19, -1
+
+                inc r19
+                subi r24, low(D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE + 1)
+                sbci r25, high(D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE + 1)
+                brcc PC - 3
+                
+                subi r24, low(-(D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE + 1))
+                sbci r25, high(-(D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE + 1))
+                
+                cpi r24, D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE
+                breq PC + 4
+                mov r16, r24
+                mov r17, r24
+                rjmp PC + 3
+                ldi r16, 0
+                ldi r17, D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE - 1
+
+                cpi r18, 0
+                brne PC + 3
+                ldi r18, D01_TEST_SET_LEDS_COLOR_RED
+                ret
+
+                cpi r18, 1
+                brne PC + 3
+                ldi r18, D01_TEST_SET_LEDS_COLOR_GREEN
+                ret
+
+                cpi r18, 2
+                brne PC + 3
+                ldi r18, D01_TEST_SET_LEDS_COLOR_BLUE
+                ret
+
+                ldi r18, D01_TEST_SET_LEDS_COLOR_WHITE
+                ret
+
+lc_out:         rcall spi_master
+                movw r5:r4, r17:r16
+                movw r7:r6, r19:r18
+                movw r9:r8, Z
+
+                clr r10
+                clr r11
+                
+lc_out_menu:    lpm r24, Z+
+                lpm r25, Z+
+                adiw r25:r24, 0
+                breq lc_out_cont
+
+                lpm r17, Z+
+
+                ldi r16, '['
                 rcall tx_byte
+                mov r16, r27
+                rcall tx_byte
+                ldi r16, ']'
+                rcall tx_byte
+                ldi r16, ' '
+                rcall tx_byte
+                rcall tx_string_crlf
+
+                sbrc ZL, 0
+                adiw Z,1
+                rjmp lc_out_menu
+
+lc_out_cont:    rcall tx_crlf
+                rcall lc_out_change
+
+lc_out_rx:      rcall rx_byte
+
+                movw Z, r9:r8
+
+lc_out_check:   lpm r24, Z+
+                lpm r25, Z+
+                adiw r25:r24, 0
+                breq lc_out_rx
+
+                lpm r17, Z+
+                cp r17, r16
+                breq lc_out_exec
+
+                lpm r17, Z+
+                tst r17
+                brne PC - 2
+
+                sbrc ZL, 0
+                adiw Z,1
+                rjmp lc_out_check
+
+lc_out_exec:    movw Z, r25:r24
+                icall
+                rjmp lc_out_rx
+
+lc_out_prev:    movw r25:r24, r11:r10
+                adiw r25:r24, 0
+                brne PC + 2
+                ret
+
+                sbiw r25:r24, 1
+                movw r11:r10, r25:r24
+                rjmp lc_out_change
+
+lc_out_next:    movw r25:r24, r11:r10
+                cp r24, r4
+                cpc r25, r5
+                brne PC + 2
+                ret
+
+                adiw r25:r24, 1
+                movw r11:r10, r25:r24
+                rjmp lc_out_change
+
+lc_out_quit:    pop r16
+                pop r16
+                ret
+
+LC_OUT_COLOR_SHORTHAND:
+.db " RGYBMCW"
+
+lc_out_change:  movw r25:r24, r11:r10
+                adiw r25:r24, 0
+                brne PC + 6
+                ldi r16, 0
+                ldi r17, 0
+                ldi r18, D01_TEST_SET_LEDS_COLOR_NONE
+                ldi r19, D01_CUBE_EDGE_SIZE
+                rjmp PC + 4
+
+                sbiw r25:r24, 1
+                movw Z, r7:r6
+                icall
+
+                sts PACKET_BUFFER + D01_TEST_SET_LEDS_START_LED_OFFSET, r16
+                sts PACKET_BUFFER + D01_TEST_SET_LEDS_END_LED_OFFSET, r17
+                sts PACKET_BUFFER + D01_TEST_SET_LEDS_COLOR_OFFSET, r18
+                sts PACKET_BUFFER + D01_TEST_SET_LEDS_LEVEL_OFFSET, r19
+
+                ldi r16, D01_TEST_SET_LEDS
+                ldi r24, low(D01_TEST_SET_LEDS_DATA_SIZE)
+                ldi r25, high(D01_TEST_SET_LEDS_DATA_SIZE)
+                rcall tx_slave_set
+
+                rcall tx_crlf
+
+                ldi r17, 0
+                ldi r18, D01_CUBE_EDGE_SIZE - 1
+
+                lds r19, PACKET_BUFFER + D01_TEST_SET_LEDS_START_LED_OFFSET
+                lds r20, PACKET_BUFFER + D01_TEST_SET_LEDS_END_LED_OFFSET
+                lds r21, PACKET_BUFFER + D01_TEST_SET_LEDS_COLOR_OFFSET
+                lds r22, PACKET_BUFFER + D01_TEST_SET_LEDS_LEVEL_OFFSET
+
+lc_out_print:   ldi r16, ' '
+                cp r18, r22
+                brne PC + 3
+                mov r16, r18
+                subi r16, -'0'
+
+                rcall tx_byte
+                
+                ldi r16, '|'
+                rcall tx_byte
+
+lc_out_print1:  ldi r16, D01_TEST_SET_LEDS_COLOR_NONE
+                cp r17, r19
+                brlo PC + 4
+                cp r20, r17
+                brlo PC + 2
+                mov r16, r21
+
+                ldi ZL, low(LC_OUT_COLOR_SHORTHAND << 1)
+                ldi ZH, high(LC_OUT_COLOR_SHORTHAND << 1)
+                add ZL, r16
+                ldi r16, 0
+                adc ZH, r16
+                lpm r16, Z
+
+                rcall tx_byte
+
+                inc r17
+                mov r16, r17
+                andi r16, D01_CUBE_EDGE_SIZE - 1
+                brne lc_out_print1
+
+                rcall tx_crlf
+                dec r18
+
+                cpi r17, D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE
+                brlo lc_out_print
                 ret
