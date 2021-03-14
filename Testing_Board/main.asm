@@ -534,8 +534,8 @@ LC_SR_S1_5:     sts PACKET_BUFFER + D01_TEST_SET_SR_PRESCALAR_OFFSET + 0, r16
 ////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 7 (front)
 ////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave) / Output, all LEDs installed
 
-LC_OUTPUTS:     ldi r16, low(D01_CUBE_EDGE_SIZE + (D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE) * 4)
-                ldi r17, high(D01_CUBE_EDGE_SIZE + (D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE) * 4)
+LC_OUTPUTS:     ldi r16, low(lc_outputs_lim)
+                ldi r17, high(lc_outputs_lim)
                 ldi r18, low(lc_outputs_tr)
                 ldi r19, high(lc_outputs_tr)
                 rjmp lc_out
@@ -565,14 +565,14 @@ LC_SLICE7:      ldi r16, 7 * D01_CUBE_EDGE_SIZE
                 rjmp LC_SLICE
 
 LC_SLICE:       mov r2, r16
-                ldi r16, low((D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4)
-                ldi r17, high((D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4)
+                ldi r16, low(lc_slice_lim)
+                ldi r17, high(lc_slice_lim)
                 ldi r18, low(lc_slice_tr)
                 ldi r19, high(lc_slice_tr)
                 rjmp lc_out
 
-LC_FULL:        ldi r16, low((D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4)
-                ldi r17, high((D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4)
+LC_FULL:        ldi r16, low(lc_full_lim)
+                ldi r17, high(lc_full_lim)
                 ldi r18, low(lc_full_tr)
                 ldi r19, high(lc_full_tr)
                 rjmp lc_out
@@ -583,9 +583,10 @@ LC_OUTPUTS_MENU:
 .dw lc_out_quit \ .db 'q', "quit", 0
 .dw 0
 
-lc_out:         rcall spi_master
-                movw r5:r4, r17:r16
+lc_out:         movw r5:r4, r17:r16
                 movw r7:r6, r19:r18
+
+                rcall spi_master
 
                 ldi ZL, low(LC_OUTPUTS_MENU << 1)
                 ldi ZH, high(LC_OUTPUTS_MENU << 1)
@@ -599,7 +600,7 @@ lc_out_menu:    lpm r24, Z+
 
                 ldi r16, '['
                 rcall tx_byte
-                mov r16, r27
+                mov r16, r17
                 rcall tx_byte
                 ldi r16, ']'
                 rcall tx_byte
@@ -611,10 +612,8 @@ lc_out_menu:    lpm r24, Z+
                 adiw Z,1
                 rjmp lc_out_menu
 
-lc_out_cont:    rcall tx_crlf
-
-                clr r10
-                clr r11
+lc_out_cont:    clr r8
+                clr r9
                 rcall lc_out_change
 
 lc_out_rx:      rcall rx_byte
@@ -643,23 +642,25 @@ lc_out_exec:    movw Z, r25:r24
                 icall
                 rjmp lc_out_rx
 
-lc_out_prev:    movw r25:r24, r11:r10
-                adiw r25:r24, 0
-                brne PC + 2
+lc_out_prev:    movw r25:r24, r9:r8
+                sbiw r25:r24, 1
+                brcc PC + 2
                 ret
 
-                sbiw r25:r24, 1
-                movw r11:r10, r25:r24
+                movw r9:r8, r25:r24
                 rjmp lc_out_change
 
-lc_out_next:    movw r25:r24, r11:r10
-                cp r24, r4
-                cpc r25, r5
-                brne PC + 2
+lc_out_next:    movw Z, r5:r4
+                icall
+
+                movw r25:r24, r9:r8
+                adiw r25:r24, 1
+                cp r24, r16
+                cpc r25, r17
+                brlo PC + 2
                 ret
 
-                adiw r25:r24, 1
-                movw r11:r10, r25:r24
+                movw r9:r8, r25:r24
                 rjmp lc_out_change
 
 lc_out_quit:    pop r16
@@ -667,10 +668,10 @@ lc_out_quit:    pop r16
                 ret
 
 LC_OUT_COLOR_SHORTHAND:
-.db " RGYBMCW"
+.db "-RGYBMCW"
 
 lc_out_change:  movw Z, r7:r6
-                movw r25:r24, r11:r10
+                movw r25:r24, r9:r8
                 icall
 
                 sts PACKET_BUFFER + D01_TEST_SET_LEDS_START_LED_OFFSET, r16
@@ -693,7 +694,7 @@ lc_out_change:  movw Z, r7:r6
                 lds r21, PACKET_BUFFER + D01_TEST_SET_LEDS_COLOR_OFFSET
                 lds r22, PACKET_BUFFER + D01_TEST_SET_LEDS_LEVEL_OFFSET
 
-lc_out_print:   ldi r16, ' '
+lc_out_print:   ldi r16, '-'
                 cp r18, r22
                 brne PC + 3
                 mov r16, r18
@@ -732,16 +733,20 @@ lc_out_print1:  ldi r16, D01_TEST_SET_LEDS_COLOR_NONE
                 brlo lc_out_print
                 ret
 
+lc_outputs_lim: ldi r16, low(D01_CUBE_EDGE_SIZE + (D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE) * 4)
+                ldi r17, high(D01_CUBE_EDGE_SIZE + (D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE) * 4)
+                ret
+
 lc_outputs_tr:  ldi r16, low(D01_CUBE_EDGE_SIZE)
                 ldi r17, high(D01_CUBE_EDGE_SIZE)
                 cp r24, r16
                 cpc r25, r17
                 brsh PC + 6
 
-                mov r19, r16
+                mov r19, r24
                 clr r16
                 clr r17
-                ldi r18, D01_TEST_SET_LEDS_COLOR_RED
+                ldi r18, D01_TEST_SET_LEDS_COLOR_WHITE
                 ret
 
                 sbiw r25:r24, D01_CUBE_EDGE_SIZE
@@ -751,6 +756,10 @@ lc_outputs_tr:  ldi r16, low(D01_CUBE_EDGE_SIZE)
                 mov r16, r24
                 mov r17, r24
                 ldi r19, D01_CUBE_EDGE_SIZE - 1
+                ret
+
+lc_slice_lim:   ldi r16, low((D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4)
+                ldi r17, high((D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4)
                 ret
 
 lc_slice_tr:    rcall lc_out_color
@@ -773,6 +782,10 @@ lc_slice_tr:    rcall lc_out_color
 
                 add r16, r2
                 add r17, r2
+                ret
+
+lc_full_lim:    ldi r16, low((D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4)
+                ldi r17, high((D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4)
                 ret
 
 lc_full_tr:     rcall lc_out_color
