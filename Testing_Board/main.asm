@@ -408,6 +408,10 @@ LC_COMM_S5:     ldi r16, 1
                 ldi r25, high(D01_TEST_SET_INT_DATA_SIZE)
                 rcall tx_slave_set
 
+                ldi r16, 0
+                dec r16
+                brne PC - 1
+
                 sbis PINREG, INT_PIN
                 rjmp step_ret_fail
 
@@ -417,6 +421,10 @@ LC_COMM_S5:     ldi r16, 1
                 ldi r24, low(D01_TEST_SET_INT_DATA_SIZE)
                 ldi r25, high(D01_TEST_SET_INT_DATA_SIZE)
                 rcall tx_slave_set
+
+                ldi r16, 0
+                dec r16
+                brne PC - 1
 
                 sbic PINREG, INT_PIN
                 rjmp step_ret_fail
@@ -430,7 +438,7 @@ LC_SR_STEPS:
 .dw LC_SR_S2 \ .db "Load and read shift registers @ 500 kHz for 1 minute", 0
 .dw LC_SR_S3 \ .db "Load and read shift registers @ 1 MHz for 1 minute", 0
 .dw LC_SR_S4 \ .db "Load and read shift registers @ 2 MHz for 1 minute", 0
-.dw LC_SR_S5 \ .db "Load and read shift registers @ 4 MHz for 1 minute", 0
+.dw LC_SR_S5 \ .db "Load and read shift registers @ 4 MHz for 30 seconds", 0
 .dw 0
 
 LC_SR_COUNT_S: .db " errors ", 0
@@ -441,46 +449,26 @@ LC_SR:          rcall spi_master
                 ldi ZH, high(LC_SR_STEPS << 1)
                 rjmp exec_steps
 
-LC_SR_S1:       ldi r16, low((D01_F_CPU / (2 * 250000)) - 1)
-                ldi r17, high((D01_F_CPU / (2 * 250000)) - 1)
-                ldi r18, low(60 * (250000 / 8))
-                ldi r19, byte2(60 * (250000 / 8))
-                ldi r20, byte3(60 * (250000 / 8))
+LC_SR_S1:       D01_TEST_SET_SR_FREQUENCY_AND_SECONDS_TO_PRESCALAR_AND_COUNT 250000, 60, r16, r17, r18, r19, r20
                 rjmp LC_SR_S1_5
 
-LC_SR_S2:       ldi r16, low((D01_F_CPU / (2 * 500000)) - 1)
-                ldi r17, high((D01_F_CPU / (2 * 500000)) - 1)
-                ldi r18, low(60 * (500000 / 8))
-                ldi r19, byte2(60 * (500000 / 8))
-                ldi r20, byte3(60 * (500000 / 8))
+LC_SR_S2:       D01_TEST_SET_SR_FREQUENCY_AND_SECONDS_TO_PRESCALAR_AND_COUNT 500000, 60, r16, r17, r18, r19, r20
                 rjmp LC_SR_S1_5
 
-LC_SR_S3:       ldi r16, low((D01_F_CPU / (2 * 1000000)) - 1)
-                ldi r17, high((D01_F_CPU / (2 * 1000000)) - 1)
-                ldi r18, low(60 * (1000000 / 8))
-                ldi r19, byte2(60 * (1000000 / 8))
-                ldi r20, byte3(60 * (1000000 / 8))
+LC_SR_S3:       D01_TEST_SET_SR_FREQUENCY_AND_SECONDS_TO_PRESCALAR_AND_COUNT 1000000, 60, r16, r17, r18, r19, r20
                 rjmp LC_SR_S1_5
 
-LC_SR_S4:       ldi r16, low((D01_F_CPU / (2 * 2000000)) - 1)
-                ldi r17, high((D01_F_CPU / (2 * 2000000)) - 1)
-                ldi r18, low(60 * (2000000 / 8))
-                ldi r19, byte2(60 * (2000000 / 8))
-                ldi r20, byte3(60 * (2000000 / 8))
+LC_SR_S4:       D01_TEST_SET_SR_FREQUENCY_AND_SECONDS_TO_PRESCALAR_AND_COUNT 2000000, 60, r16, r17, r18, r19, r20
                 rjmp LC_SR_S1_5
 
-LC_SR_S5:       ldi r16, low((D01_F_CPU / (2 * 4000000)) - 1)
-                ldi r17, high((D01_F_CPU / (2 * 4000000)) - 1)
-                ldi r18, low(60 * (4000000 / 8))
-                ldi r19, byte2(60 * (4000000 / 8))
-                ldi r20, byte3(60 * (4000000 / 8))
+LC_SR_S5:       D01_TEST_SET_SR_FREQUENCY_AND_SECONDS_TO_PRESCALAR_AND_COUNT 4000000, 30, r16, r17, r18, r19, r20
                 rjmp LC_SR_S1_5
 
 LC_SR_S1_5:     sts PACKET_BUFFER + D01_TEST_SET_SR_PRESCALAR_OFFSET + 0, r16
                 sts PACKET_BUFFER + D01_TEST_SET_SR_PRESCALAR_OFFSET + 1, r17
                 sts PACKET_BUFFER + D01_TEST_SET_SR_COUNT_OFFSET + 0, r18
-                sts PACKET_BUFFER + D01_TEST_SET_SR_COUNT_OFFSET + 0, r19
-                sts PACKET_BUFFER + D01_TEST_SET_SR_COUNT_OFFSET + 0, r20
+                sts PACKET_BUFFER + D01_TEST_SET_SR_COUNT_OFFSET + 1, r19
+                sts PACKET_BUFFER + D01_TEST_SET_SR_COUNT_OFFSET + 2, r20
 
                 ldi r16, D01_TEST_SET_SR
                 ldi r24, low(D01_TEST_SET_SR_DATA_SIZE)

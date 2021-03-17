@@ -5,13 +5,12 @@
 .equ D01_LED_COLOR_BITS = 4 ; How many bits per color
 .equ D01_FRAME_SIZE     = ((D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE) * (D01_LED_COLORS * D01_LED_COLOR_BITS)) / 8
 
-.equ D01_TEST_SET       = 0 | 0x80
+.equ D01_TEST_SET       = 0
 .equ D01_TEST_GET       = 1
-.equ D01_TEST_SET_INT   = 2 | 0x80
-.equ D01_TEST_SET_SR    = 3 | 0x80
+.equ D01_TEST_SET_INT   = 2
+.equ D01_TEST_SET_SR    = 3
 .equ D01_TEST_GET_SR    = 4
-.equ D01_TEST_SET_LEDS  = 5 | 0x80
-.equ D01_LAST_OPCODE    = (D01_TEST_SET_LEDS & 0x7F)
+.equ D01_TEST_SET_LEDS  = 5
 
 .equ D01_TEST_SET_DATA_SIZE             = D01_FRAME_SIZE
 
@@ -27,6 +26,14 @@
 .equ D01_TEST_SET_SR_COUNT_OFFSET       = D01_TEST_SET_SR_PRESCALAR_SIZE + D01_TEST_SET_SR_PRESCALAR_OFFSET
 .equ D01_TEST_SET_SR_DATA_SIZE          = D01_TEST_SET_SR_COUNT_SIZE + D01_TEST_SET_SR_COUNT_OFFSET
 .equ D01_TEST_SET_SR_TX_BYTE            = 0xAA
+
+.macro D01_TEST_SET_SR_FREQUENCY_AND_SECONDS_TO_PRESCALAR_AND_COUNT
+    ldi @2, low((D01_F_CPU / (2 * @0)) - 1)
+    ldi @3, high((D01_F_CPU / (2 * @0)) - 1)
+    ldi @4, low(@1 * (@0 / 8))
+    ldi @5, byte2(@1 * (@0 / 8))
+    ldi @6, byte3(@1 * (@0 / 8))
+.endmacro
 
 .equ D01_TEST_GET_SR_ERROR_COUNT_SIZE   = D01_TEST_SET_SR_COUNT_SIZE
 .equ D01_TEST_GET_SR_ERROR_COUNT_OFFSET = 0

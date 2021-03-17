@@ -27,9 +27,10 @@
 .equ UCSR0C_INIT = (1 << UMSEL00) | (1 << UMSEL01)
 
 ; TIMER1 used to blink LED
-.equ TCCR1A_INIT = (1 << COM1A0)
-.equ TCCR1B_INIT = (1 << WGM12) | (1 << CS12)
-.equ OCR1A_INIT  = (F_CPU / 256) - 1
+.equ TCCR1A_INIT = (1 << COM1A1) | (1 << WGM11)
+.equ TCCR1B_INIT = (1 << WGM13) | (1 << WGM12) | (1 << CS12)
+.equ ICR1_INIT   = (F_CPU / 256) - 1
+.equ OCR1A_INIT  = (F_CPU / 256) / 8 - 1
 
 ; PORTS
 .equ PORTB_INIT = (1 << INT_PIN) | (1 << LED_PIN)
@@ -40,11 +41,11 @@
 .equ DDRD_INIT  = (1 << LATCH_PIN) | (1 << SHIFT_PIN) | (1 << ENABLE_PIN)
 
 ; Registers / RAM Addresses
-.def SPI_DATA_OUT_REGISTER  = r2
-.def SPI_DATA_IN_REGISTER   = r22
-.def SPI_STATE_REGISTER     = r23
-.def SPI_DATA_COUNT_L       = r24
-.def SPI_DATA_COUNT_H       = r25
+.def SPI_POINTER_END_L   = r2
+.def SPI_POINTER_END_H   = r3
+.def SPI_DATA_REGISTER   = r4
+.def SPI_OPCODE_REGISTER = r22
+.def SPI_STATE_REGISTER  = r23
 
 .equ SPI_STATE_START    = 0
 .equ SPI_STATE_WRITE    = 1
