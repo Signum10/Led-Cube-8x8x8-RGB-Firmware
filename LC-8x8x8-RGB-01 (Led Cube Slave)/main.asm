@@ -29,20 +29,7 @@
 .org SPMRaddr   reti
 .org INT_VECTORS_SIZE
 
-start:          ldi r16, SPCR_INIT
-                out SPCR, r16
-
-                ldi r16, EICRA_INIT
-                sts EICRA, r16
-                ldi r16, EIMSK_INIT
-                out EIMSK, r16
-
-                ldi r16, UCSR0C_INIT
-                sts UCSR0C, r16
-                ldi r16, UCSR0B_INIT
-                sts UCSR0B, r16
-
-                ldi r16, PORTB_INIT
+start:          ldi r16, PORTB_INIT
                 out PORTB, r16
                 ldi r16, DDRB_INIT
                 out DDRB, r16
@@ -56,6 +43,24 @@ start:          ldi r16, SPCR_INIT
                 out PORTD, r16
                 ldi r16, DDRD_INIT
                 out DDRD, r16
+
+                ldi r16, SPCR_INIT
+                out SPCR, r16
+                sbi MISO_DDR, MISO_PIN
+
+                ldi r16, EICRA_INIT
+                sts EICRA, r16
+                ldi r16, EIMSK_INIT
+                out EIMSK, r16
+
+                ldi r16, UCSR0C_INIT
+                sts UCSR0C, r16
+                ldi r16, UCSR0B_INIT
+                sts UCSR0B, r16
+                ldi r16, high(UBRR0_INIT)
+                sts UBRR0H, r16
+                ldi r16, low(UBRR0_INIT)
+                sts UBRR0L, r16
 
                 ldi r16, high(ICR1_INIT)
                 sts ICR1H, r16
@@ -226,7 +231,6 @@ TEST_SET_INT:   lds r16, TEST_DATA + D01_TEST_SET_INT_STATE_OFFSET
 //////////////////////////////////////////////////
 
 TEST_SET_SR:    sbi INT_PORT, INT_PIN
-                sbi ENABLE_PORT, ENABLE_PIN
 
                 ldi YL, low(TEST_DATA)
                 ldi YH, high(TEST_DATA)
@@ -240,13 +244,53 @@ TEST_SET_SR:    sbi INT_PORT, INT_PIN
                 ldd r7, Y + D01_TEST_SET_SR_COUNT_OFFSET + 0
                 ldd r8, Y + D01_TEST_SET_SR_COUNT_OFFSET + 1
                 ldd r9, Y + D01_TEST_SET_SR_COUNT_OFFSET + 2
+                
+                ldd r19, Y + D01_TEST_SET_SR_BYTE_OFFSET
+
+                ldd r16, Y + D01_TEST_SET_SR_MODE_OFFSET
+                cpi r16, D01_TEST_SET_SR_MODE_MANUAL
+                brne PC + 3
+                rcall TEST_SET_SR_MAN
+                rjmp PC + 2
+                rcall TEST_SET_SR_AUT
+
+                ldi r16, high(UBRR0_INIT)
+                sts UBRR0H, r16
+                ldi r16, low(UBRR0_INIT)
+                sts UBRR0L, r16
+
+                cbi INT_PORT, INT_PIN
+                rjmp loop
+
+TEST_SET_SR_MAN:cbi ENABLE_PORT, ENABLE_PIN ; must be carefull what you load in SR because of this
+
+                ldi r16, low(1)
+                ldi r17, byte2(1)
+                ldi r18, byte3(1)
+
+set_sr_loop0:   lds r15, UCSR0A
+                sbrs r15, UDRE0
+                rjmp set_sr_loop0
+
+                sts UDR0, r19
+
+                sub r7, r16
+                sbc r8, r17
+                sbc r9, r18
+                brne set_sr_loop0
+                ret         
+
+TEST_SET_SR_AUT:sbi ENABLE_PORT, ENABLE_PIN
+
                 clr r10
                 clr r11
                 clr r12
 
-                ldi r16, ((D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE * D01_LED_COLORS) / 8) + (D01_CUBE_EDGE_SIZE / 8)
-                ldi r19, D01_TEST_SET_SR_TX_BYTE
+                ldi r16, 1 << TXC0
+                sts UCSR0A, r16
 
+                ldi r16, ((D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE * D01_LED_COLORS) / 8) + (D01_CUBE_EDGE_SIZE / 8)
+                
 set_sr_loop1:   lds r15, UCSR0A
                 sbrs r15, UDRE0
                 rjmp set_sr_loop1
@@ -291,16 +335,14 @@ set_sr_loop4a:  sub r7, r16
                 sbc r9, r18
                 brne set_sr_loop4
 
-                clr r16
-                sts UBRR0H, r16
-                sts UBRR0L, r16
+set_sr_loop5:   lds r15, UCSR0A
+                sbrs r15, TXC0
+                rjmp set_sr_loop5
 
                 std Y + D01_TEST_GET_SR_ERROR_COUNT_OFFSET + 0, r10
                 std Y + D01_TEST_GET_SR_ERROR_COUNT_OFFSET + 1, r11
                 std Y + D01_TEST_GET_SR_ERROR_COUNT_OFFSET + 2, r12
-
-                cbi INT_PORT, INT_PIN
-                rjmp loop
+                ret
 
 //////////////////////////////////////////////////
 
@@ -401,6 +443,11 @@ set_leds_end:   ldi r16, 1 << (D01_CUBE_EDGE_SIZE - 1)
                 sts UDR0, r16
 
                 sbi LATCH_PORT, LATCH_PIN
+
+                ldi r16, 0
+                dec r16
+                brne PC - 1
+
                 cbi ENABLE_PORT, ENABLE_PIN
                 cbi LATCH_PORT, LATCH_PIN
                 rjmp loop

@@ -12,112 +12,405 @@ start:          ldi r16, low(RAMEND)
                 ldi r16, UCSRB_INIT
                 out UCSRB, r16
 
-loop:           rcall tx_crlf
+                rcall tx_crlf
                 ldi r16, '*'
                 ldi r17, 32
-                rcall tx_byte
-                dec r17
-                brne PC - 2
+                rcall tx_byte_repeat
+
+                ldi r16, low(MENU_ROOT)
+                ldi r17, high(MENU_ROOT)
+                rcall menu_nav
+                
+                rjmp PC
+
+MENU_ROOT:
+.db "Root", 0
+.db '0', "LC-8x8x8-RGB-00 (Master)",         0 \ .dw menu_nav, MENU_00
+.db '1', "LC-8x8x8-RGB-01 (Led Cube Slave)", 0 \ .dw menu_nav, MENU_01
+.dw 0
+.dw 0, 0
+
+MENU_00:
+.db "Root/LC-8x8x8-RGB-00 (Master)", 0
+.db 'i', "Interface", 0 \ .dw menu_nav, MENU_00I
+.db 'b', "Back",      0 \ .dw menu_back, 0
+.dw 0
+.dw 0, 0
+
+MENU_00I:
+.db "Root/LC-8x8x8-RGB-00 (Master)/Interface", 0
+.db '0', "Slave0", 0 \ .dw prog_00i, 0
+.db '1', "Slave1", 0 \ .dw prog_00i, 1
+.db '2', "Slave2", 0 \ .dw prog_00i, 2
+.db '3', "Slave3", 0 \ .dw prog_00i, 3
+.db '4', "Slave4", 0 \ .dw prog_00i, 4
+.db '5', "Slave5", 0 \ .dw prog_00i, 5
+.db 'b', "Back",   0 \ .dw menu_back, 0
+.dw 0
+.dw prog_00i_init, 0
+
+MENU_01:
+.db "Root/LC-8x8x8-RGB-01 (Led Cube Slave)", 0
+.db 'i', "Interface",                    0 \ .dw menu_nav, MENU_01I
+.db 'm', "Shift Registers, manual load", 0 \ .dw menu_nav, MENU_01SM
+.db 'a', "Shift Registers, auto load",   0 \ .dw menu_nav, MENU_01SA
+.db 'l', "LEDs",                         0 \ .dw menu_nav, MENU_01L
+.db 'b', "Back",                         0 \ .dw menu_back, 0
+.dw 0
+.dw 0, 0
+
+MENU_01I:
+.db "Root/LC-8x8x8-RGB-01 (Led Cube Slave)/Interface", 0
+.dw 0
+.dw prog_01i_init, 0
+
+MENU_01SM:
+.db "Root/LC-8x8x8-RGB-01 (Led Cube Slave)/Shift Registers, manual load", 0
+.db 'a', "Previous frequency", 0 \ .dw prog_01sm_fq, -1
+.db 'q', "Next frequency",     0 \ .dw prog_01sm_fq, 1
+.db 's', "Byte -= 1",          0 \ .dw prog_01sm_by, -1
+.db 'S', "Byte -= 16",         0 \ .dw prog_01sm_by, -16
+.db 'w', "Byte += 1",          0 \ .dw prog_01sm_by, 1
+.db 'W', "Byte += 16",         0 \ .dw prog_01sm_by, 16
+.db 'd', "Count -= 1",         0 \ .dw prog_01sm_cn, -1
+.db 'D', "Count -= 8",         0 \ .dw prog_01sm_cn, -8
+.db 'e', "Count += 1",         0 \ .dw prog_01sm_cn, 1
+.db 'E', "Count += 8",         0 \ .dw prog_01sm_cn, 8
+.db 't', "Send",               0 \ .dw prog_01sm_tx, 0
+.db 'b', "Back",               0 \ .dw menu_back, 0
+.dw 0
+.dw prog_01sm_init, 0
+
+MENU_01SA:
+.db "Root/LC-8x8x8-RGB-01 (Led Cube Slave)/Shift Registers, auto load", 0
+.dw 0
+.dw prog_01sa_init, 0
+
+MENU_01L:
+.db "Root/LC-8x8x8-RGB-01 (Led Cube Slave)/LEDs", 0
+.db '0', "None installed",               0 \ .dw prog_01l_init, 0
+.db '1', "Installed slice 1 (back)",     0 \ .dw prog_01l_init, 1
+.db '2', "Installed slice 2",            0 \ .dw prog_01l_init, 2
+.db '3', "Installed slice 3",            0 \ .dw prog_01l_init, 3
+.db '4', "Installed slice 4",            0 \ .dw prog_01l_init, 4
+.db '5', "Installed slice 5",            0 \ .dw prog_01l_init, 5
+.db '6', "Installed slice 6",            0 \ .dw prog_01l_init, 6
+.db '7', "Installed slice 7",            0 \ .dw prog_01l_init, 7
+.db '8', "Installed slice 8 (front)",    0 \ .dw prog_01l_init, 8
+.db '9', "All installed",                0 \ .dw prog_01l_init, 9
+.db 'p', "Previous step",                0 \ .dw prog_01l_step, -1
+.db 'P', "Previous 100 steps",           0 \ .dw prog_01l_step, -100
+.db 'n', "Next step",                    0 \ .dw prog_01l_step, 1
+.db 'N', "Next 100 steps",               0 \ .dw prog_01l_step, 100
+.db 'b', "Back",                         0 \ .dw menu_back
+.dw 0
+.dw prog_01l_init, 0
+
+////////////////////////////////////////////////// Shared
+
+menu_nav:       movw r3:r2, r17:r16
+
+menu_nav_ref:   movw Z, r3:r2
+
                 rcall tx_crlf
+                ldi r16, '*'
+                ldi r17, 3
+                rcall tx_byte_repeat
+                ldi r16, ' '
+                rcall tx_byte
 
-                ldi ZL, low(MENU << 1)
-                ldi ZH, high(MENU << 1)
+                rcall tx_string
+                sbrc ZL, 0
+                adiw Z, 1
 
-                ldi r23, 'a'
-
-menu_choice:    lpm r24, Z+
-                lpm r25, Z+
-
-                adiw r25:r24, 0
-                breq wait_choice
+menu_nav_opt:   lpm r17, Z+
+                tst r17
+                breq menu_nav_func
                 
                 ldi r16, '['
                 rcall tx_byte
-                mov r16, r23
+                mov r16, r17
                 rcall tx_byte
                 ldi r16, ']'
                 rcall tx_byte
                 ldi r16, ' '
                 rcall tx_byte
-                rcall tx_string_crlf
 
+                rcall tx_string
                 sbrc ZL, 0
                 adiw Z, 1
-                inc r23
-                rjmp menu_choice
+                adiw Z, 4
+                rjmp menu_nav_opt
 
-wait_choice:    rcall rx_byte
-                cpi r16, 'a'
-                brlo wait_choice
-                cp r16, r23
-                brsh wait_choice
+menu_nav_func:  adiw Z, 1
+                lpm r24, Z+
+                lpm r25, Z+
+                adiw r25:r24, 0
+                breq menu_nav_wait
 
-                ldi ZL, low(MENU << 1)
-                ldi ZH, high(MENU << 1)
-
-find_choice:    cpi r16, 'a'
-                breq found_choice
-
-                adiw Z, 2
+                lpm r16, Z+
                 lpm r17, Z+
-                tst r17
+                movw Z, r25:r24
+
+                push r2
+                push r3
+                icall
+                pop r3
+                pop r2
+
+menu_nav_wait:  movw Z, r3:r2
+                
+                lpm r16, Z+
+                tst r16
                 brne PC - 2
                 sbrc ZL, 0
                 adiw Z, 1
 
-                dec r16
-                rjmp find_choice 
- 
-found_choice:   lpm r2, Z+
-                lpm r3, Z+
-                movw r5:r4, Z
-                
-                rcall tx_crlf
-                ldi ZL, low(START_STRING << 1)
-                ldi ZH, high(START_STRING << 1)
-                rcall tx_string
-                movw Z, r5:r4
-                rcall tx_string_crlf
-
-                movw Z, r3:r2
-                push r4
-                push r5
-                icall
-                pop r5
-                pop r4
-                rcall spi_close
-
-                rcall tx_crlf
-                ldi ZL, low(END_STRING << 1)
-                ldi ZH, high(END_STRING << 1)
-                rcall tx_string
-                movw Z, r5:r4
-                rcall tx_string_crlf
+                lpm r16, Z
+                tst r16
+                breq menu_refresh
 
                 rcall rx_byte
+                mov r12, r16
 
-                rjmp loop
+menu_nav_chk:   lpm r13, Z+
+                tst r13
+                breq menu_nav_wait
+                
+                lpm r16, Z+
+                tst r16
+                brne PC - 2
+                sbrc ZL, 0
+                adiw Z, 1
 
-MENU:
-.dw MASTER_COMM \ .db "LC-8x8x8-RGB-00 (Master) / Interface", 0
-.dw LC_COMM     \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Interface", 0
-.dw LC_SR       \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Shift Registers", 0
-.dw LC_OUTPUTS  \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, no LEDs installed", 0
-.dw LC_SLICE0   \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 0 (back)", 0
-.dw LC_SLICE1   \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 1", 0
-.dw LC_SLICE2   \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 2", 0
-.dw LC_SLICE3   \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 3", 0
-.dw LC_SLICE4   \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 4", 0
-.dw LC_SLICE5   \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 5", 0
-.dw LC_SLICE6   \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 6", 0
-.dw LC_SLICE7   \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 7 (front)", 0
-.dw LC_FULL     \ .db "LC-8x8x8-RGB-01 (Led Cube Slave) / Output, all LEDs installed", 0
-.dw 0
+                lpm r14, Z+
+                lpm r15, Z+
+                lpm r16, Z+
+                lpm r17, Z+
 
-START_STRING:       .db "*** Started:  ", 0
-END_STRING:         .db "*** Finished: ", 0
+                cp r12, r13
+                brne menu_nav_chk
+
+                movw Z, r15:r14
+                push r2
+                push r3
+                icall ; these should return with menu_back, menu_continue or menu_refresh
+                pop r3
+                pop r2
+
+                cpi r16, RET_MENU_BACK
+                brne PC + 3
+                rcall spi_close
+                rjmp menu_refresh
+
+                cpi r16, RET_MENU_CONTINUE
+                brne PC + 2
+                rjmp menu_nav_wait
+
+                cpi r16, RET_MENU_REFRESH
+                brne PC + 2
+                rjmp menu_nav_ref
+
+                rjmp menu_nav_ref
+
+menu_back:      ldi r16, RET_MENU_BACK
+                ret
+
+menu_continue:  ldi r16, RET_MENU_CONTINUE
+                ret
+
+menu_refresh:   ldi r16, RET_MENU_REFRESH
+                ret
+
+PASS_STRING:    .db "PASS", 0
+FAIL_STRING:    .db "FAIL", 0
+RESULT_STRING:  .db "RESULT: ", 0
+
+step_prog:      ldi r16, RET_STEP_PASS
+                mov r4, r16
+
+step_prog1:     lpm r16, Z
+                tst r16
+                breq step_prog_exit
+               
+                rcall tx_string
+                sbrc ZL, 0
+                adiw Z, 1
+
+                ldi r16, '.'
+                ldi r17, 3
+                rcall tx_byte_repeat
+                ldi r16, ' '
+                rcall tx_byte
+
+                lpm r16, Z+
+                lpm r17, Z+
+
+                push ZL
+                push ZH
+                push r4
+                icall ; these should return with step_pass or step_fail
+                pop r4
+                pop ZH
+                pop ZL
+
+                cpi r16, RET_STEP_PASS
+                breq step_prog1
+
+                ldi r16, RET_STEP_FAIL
+                mov r4, r16
+                rjmp step_prog1
+
+step_prog_exit: rcall tx_crlf
+                ldi ZL, low(RESULT_STRING << 1)
+                ldi ZH, high(RESULT_STRING << 1)
+                rcall tx_string
+                
+                mov r16, r4
+                cpi r16, RET_STEP_PASS
+                breq step_pass
+                rjmp step_fail
+
+step_pass:      ldi ZL, low(PASS_STRING << 1)
+                ldi ZH, high(PASS_STRING << 1)
+                rcall tx_string_crlf
+
+                ldi r16, RET_STEP_PASS
+                mov r4, r16
+                ret
+
+step_fail:      ldi ZL, low(FAIL_STRING << 1)
+                ldi ZH, high(FAIL_STRING << 1)
+                rcall tx_string_crlf
+                
+                ldi r16, RET_STEP_FAIL
+                mov r4, r16
+                ret
 
 ////////////////////////////////////////////////// Comms
+
+tx_8_bit_b16:   mov r16, r17
+                swap r16
+                rcall tx_4_bit_b16
+                mov r16, r17
+                rjmp tx_4_bit_b16
+
+tx_4_bit_b16:   andi r16, 0x0F
+                subi r16, -'0'
+                cpi r16, '9' + 1
+                brlo PC + 2
+                subi r16, 'A' - '9' - 1
+                rjmp tx_byte
+
+tx_24_bit_b10:  clt
+
+                ldi r16, '0' - 1
+                inc r16
+                subi r17, low(10000000)
+                sbci r18, byte2(10000000)
+                sbci r19, byte3(10000000)
+                brcc PC - 4
+                subi r17, low(-10000000)
+                sbci r18, byte2(-10000000)
+                sbci r19, byte3(-10000000)
+
+                brts PC + 4
+                cpi r16, '0'
+                breq PC + 3
+                set
+                rcall tx_byte
+
+                ldi r16, '0' - 1
+                inc r16
+                subi r17, low(1000000)
+                sbci r18, byte2(1000000)
+                sbci r19, byte3(1000000)
+                brcc PC - 4
+                subi r17, low(-1000000)
+                sbci r18, byte2(-1000000)
+                sbci r19, byte3(-1000000)
+
+                brts PC + 4
+                cpi r16, '0'
+                breq PC + 3
+                set
+                rcall tx_byte
+
+                ldi r16, '0' - 1
+                inc r16
+                subi r17, low(100000)
+                sbci r18, byte2(100000)
+                sbci r19, byte3(100000)
+                brcc PC - 4
+                subi r17, low(-100000)
+                sbci r18, byte2(-100000)
+                sbci r19, byte3(-100000)
+
+                brts PC + 4
+                cpi r16, '0'
+                breq PC + 3
+                set
+                rcall tx_byte
+
+                ldi r16, '0' - 1
+                inc r16
+                subi r17, low(10000)
+                sbci r18, byte2(10000)
+                sbci r19, byte3(10000)
+                brcc PC - 4
+                subi r17, low(-10000)
+                sbci r18, byte2(-10000)
+                sbci r19, byte3(-10000)
+
+                brts PC + 4
+                cpi r16, '0'
+                breq PC + 3
+                set
+                rcall tx_byte
+
+                ldi r16, '0' - 1
+                inc r16
+                subi r17, low(1000)
+                sbci r18, high(1000)
+                brcc PC - 3
+                subi r17, low(-1000)
+                sbci r18, high(-1000)
+
+                brts PC + 4
+                cpi r16, '0'
+                breq PC + 3
+                set
+                rcall tx_byte
+
+                ldi r16, '0' - 1
+                inc r16
+                subi r17, low(100)
+                sbci r18, high(100)
+                brcc PC - 3
+                subi r17, low(-100)
+                sbci r18, high(-100)
+
+                brts PC + 4
+                cpi r16, '0'
+                breq PC + 3
+                set
+                rcall tx_byte
+
+                ldi r16, '0' - 1
+                inc r16
+                subi r17, 10
+                brcc PC - 2
+                subi r17, -10
+
+                brts PC + 4
+                cpi r16, '0'
+                breq PC + 3
+                set
+                rcall tx_byte
+
+                ldi r16, '0'
+                add r16, r17
+                rjmp tx_byte
 
 tx_string_crlf: rcall tx_string
                 rjmp tx_crlf
@@ -134,78 +427,10 @@ tx_crlf:        ldi r16, 0x0D
                 ldi r16, 0x0A
                 rjmp tx_byte
 
-tx_24_bit_int:  ldi r16, '0' - 1
-                inc r16
-                subi r17, low(10000000)
-                sbci r18, byte2(10000000)
-                sbci r19, byte3(10000000)
-                brcc PC - 4
-                subi r17, low(-10000000)
-                sbci r18, byte2(-10000000)
-                sbci r19, byte3(-10000000)
-                rcall tx_byte
-
-                ldi r16, '0' - 1
-                inc r16
-                subi r17, low(1000000)
-                sbci r18, byte2(1000000)
-                sbci r19, byte3(1000000)
-                brcc PC - 4
-                subi r17, low(-1000000)
-                sbci r18, byte2(-1000000)
-                sbci r19, byte3(-1000000)
-                rcall tx_byte
-
-                ldi r16, '0' - 1
-                inc r16
-                subi r17, low(100000)
-                sbci r18, byte2(100000)
-                sbci r19, byte3(100000)
-                brcc PC - 4
-                subi r17, low(-100000)
-                sbci r18, byte2(-100000)
-                sbci r19, byte3(-100000)
-                rcall tx_byte
-
-                ldi r16, '0' - 1
-                inc r16
-                subi r17, low(10000)
-                sbci r18, byte2(10000)
-                sbci r19, byte3(10000)
-                brcc PC - 4
-                subi r17, low(-10000)
-                sbci r18, byte2(-10000)
-                sbci r19, byte3(-10000)
-                rcall tx_byte
-
-                ldi r16, '0' - 1
-                inc r16
-                subi r17, low(1000)
-                sbci r18, high(1000)
-                brcc PC - 3
-                subi r17, low(-1000)
-                sbci r18, high(-1000)
-                rcall tx_byte
-
-                ldi r16, '0' - 1
-                inc r16
-                subi r17, low(100)
-                sbci r18, high(100)
-                brcc PC - 3
-                subi r17, low(-100)
-                sbci r18, high(-100)
-                rcall tx_byte
-
-                ldi r16, '0' - 1
-                inc r16
-                subi r17, 10
-                brcc PC - 2
-                subi r17, -10
-                rcall tx_byte
-
-                ldi r16, '0'
-                add r16, r17
-                rjmp tx_byte
+tx_byte_repeat: rcall tx_byte
+                dec r17
+                brne tx_byte_repeat
+                ret
 
 tx_byte:        sbis UCSRA, UDRE
                 rjmp tx_byte
@@ -277,92 +502,53 @@ txrx_spi:       out SPDR, r16
                 in r16, SPDR
                 ret
 
-////////////////////////////////////////////////// Shared
-STEP_SEPARATOR: .db "... ", 0
-PASS_STRING: .db "PASS", 0
-FAIL_STRING: .db "FAIL", 0
+////////////////////////////////////////////////// Root/LC-8x8x8-RGB-00 (Master)/Interface
 
-exec_steps:     set
+prog_00i_init:  ldi r16, 'i'
+                rjmp tx_byte
 
-exec_steps1:    lpm r24, Z+
-                lpm r25, Z+
-                adiw r25:r24, 0
-                brne PC + 4
-                rcall tx_crlf
-                brts step_ret_pass
-                rjmp step_ret_fail
-
-                rcall tx_string
-                sbrc ZL, 0
-                adiw Z,1
-
-                push ZL
-                push ZH
-
-                ldi ZL, low(STEP_SEPARATOR << 1)
-                ldi ZH, high(STEP_SEPARATOR << 1)
-                rcall tx_string
-
-                movw Z, r25:r24
-                icall ; these should return with step_ret_pass or step_ret_fail
-
-                pop ZH
-                pop ZL
-                rjmp exec_steps1
-
-step_ret_pass:  ldi ZL, low(PASS_STRING << 1)
-                ldi ZH, high(PASS_STRING << 1)
-                rjmp tx_string_crlf
-
-step_ret_fail:  clt
-                ldi ZL, low(FAIL_STRING << 1)
-                ldi ZH, high(FAIL_STRING << 1)
-                rjmp tx_string_crlf
-
-////////////////////////////////////////////////// LC-8x8x8-RGB-00 (Master) / Interface
-
-MASTER_COMM:    ldi r16, 'A'
+prog_00i:       subi r16, -'0'
                 rcall tx_byte
-                ret
+                rjmp menu_continue
 
-////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave) / Interface
+////////////////////////////////////////////////// Root/LC-8x8x8-RGB-01 (Led Cube Slave)/Interface
 
-LC_COMM_STEPS:
-.dw LC_COMM_S1 \ .db "TX & RX big packet @ 250 kHz", 0
-.dw LC_COMM_S2 \ .db "TX & RX big packet @ 500 kHz", 0
-.dw LC_COMM_S3 \ .db "TX & RX big packet @ 1 MHz", 0
-.dw LC_COMM_S4 \ .db "TX & RX big packet @ 2 MHz", 0
-.dw LC_COMM_S5 \ .db "Check INT pin toggle, pass 1", 0
-.dw LC_COMM_S5 \ .db "Check INT pin toggle, pass 2", 0
+PROG_01I_STEPS:
+.db "TX & RX big packet @ 250 kHz", 0 \ .dw prog_01i_s0
+.db "TX & RX big packet @ 500 kHz", 0 \ .dw prog_01i_s1
+.db "TX & RX big packet @ 1 MHz",   0 \ .dw prog_01i_s2
+.db "TX & RX big packet @ 2 MHz",   0 \ .dw prog_01i_s3
+.db "Check INT pin toggle, pass 1", 0 \ .dw prog_01i_s4
+.db "Check INT pin toggle, pass 2", 0 \ .dw prog_01i_s4
 .dw 0
 
-LC_COMM:        rcall spi_master
+prog_01i_init:  rcall spi_master
+                ldi ZL, low(PROG_01I_STEPS << 1)
+                ldi ZH, high(PROG_01I_STEPS << 1)
+                rcall step_prog
+                rjmp menu_back
 
-                ldi ZL, low(LC_COMM_STEPS << 1)
-                ldi ZH, high(LC_COMM_STEPS << 1)
-                rjmp exec_steps
-
-LC_COMM_S1:     sbi SPSR, SPI2X
+prog_01i_s0:    sbi SPSR, SPI2X
                 ldi r16, MASTER_SPCR_INIT | (1 << SPR1)
                 out SPCR, r16
-                rjmp LC_COMM_S1_4
+                rjmp prog_01i_s0_3
 
-LC_COMM_S2:     cbi SPSR, SPI2X
+prog_01i_s1:    cbi SPSR, SPI2X
                 ldi r16, MASTER_SPCR_INIT | (1 << SPR0)
                 out SPCR, r16
-                rjmp LC_COMM_S1_4
+                rjmp prog_01i_s0_3
 
-LC_COMM_S3:     sbi SPSR, SPI2X
+prog_01i_s2:    sbi SPSR, SPI2X
                 ldi r16, MASTER_SPCR_INIT | (1 << SPR0)
                 out SPCR, r16
-                rjmp LC_COMM_S1_4
+                rjmp prog_01i_s0_3
 
-LC_COMM_S4:     cbi SPSR, SPI2X
+prog_01i_s3:    cbi SPSR, SPI2X
                 ldi r16, MASTER_SPCR_INIT
                 out SPCR, r16
-                rjmp LC_COMM_S1_4
+                rjmp prog_01i_s0_3
 
-LC_COMM_S1_4:   ldi XL, low(PACKET_BUFFER)
+prog_01i_s0_3:  ldi XL, low(PACKET_BUFFER)
                 ldi XH, high(PACKET_BUFFER)
                 ldi r24, low(PACKET_BUFFER + D01_TEST_SET_DATA_SIZE)
                 ldi r25, high(PACKET_BUFFER + D01_TEST_SET_DATA_SIZE)
@@ -393,15 +579,15 @@ LC_COMM_S1_4:   ldi XL, low(PACKET_BUFFER)
                 ld r17, X+
                 cp r17, r16
                 breq PC + 2
-                rjmp step_ret_fail
+                rjmp step_fail
                 inc r16
                 cp XL, r24
                 cpc XH, r25
                 brlo PC - 7
 
-                rjmp step_ret_pass
+                rjmp step_pass
 
-LC_COMM_S5:     ldi r16, 1
+prog_01i_s4:    ldi r16, 1
                 sts PACKET_BUFFER + D01_TEST_SET_INT_STATE_OFFSET, r16
                 ldi r16, D01_TEST_SET_INT
                 ldi r24, low(D01_TEST_SET_INT_DATA_SIZE)
@@ -413,7 +599,7 @@ LC_COMM_S5:     ldi r16, 1
                 brne PC - 1
 
                 sbis PINREG, INT_PIN
-                rjmp step_ret_fail
+                rjmp step_fail
 
                 ldi r16, 0
                 sts PACKET_BUFFER + D01_TEST_SET_INT_STATE_OFFSET, r16
@@ -427,48 +613,174 @@ LC_COMM_S5:     ldi r16, 1
                 brne PC - 1
 
                 sbic PINREG, INT_PIN
-                rjmp step_ret_fail
+                rjmp step_fail
 
-                rjmp step_ret_pass
+                rjmp step_pass
 
-////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave) / Shift Registers
+////////////////////////////////////////////////// Root/LC-8x8x8-RGB-01 (Led Cube Slave)/Shift Registers, manual load
 
-LC_SR_STEPS:
-.dw LC_SR_S1 \ .db "Load and read shift registers @ 250 kHz for 1 minute", 0
-.dw LC_SR_S2 \ .db "Load and read shift registers @ 500 kHz for 1 minute", 0
-.dw LC_SR_S3 \ .db "Load and read shift registers @ 1 MHz for 1 minute", 0
-.dw LC_SR_S4 \ .db "Load and read shift registers @ 2 MHz for 1 minute", 0
-.dw LC_SR_S5 \ .db "Load and read shift registers @ 4 MHz for 30 seconds", 0
+.macro PROG_01SM_MACRO
+.dd @0
+.dw (D01_F_CPU / (2 * @0)) - 1
+.endmacro
+
+PROG_01SM_FREQUENCIES:
+PROG_01SM_MACRO 10000
+PROG_01SM_MACRO 100000
+PROG_01SM_MACRO 250000
+PROG_01SM_MACRO 500000
+PROG_01SM_MACRO 1000000
+PROG_01SM_MACRO 2000000
+PROG_01SM_MACRO 4000000
+PROG_01SM_MACRO 8000000
+
+PROG_01SM_STRING:
+.db "Frequency: ", 0, " Hz (prescalar: ", 0, "), byte: 0x", 0, " , count: ", 0
+
+PROG_01SM_STRING_SENT:
+.db "Sent!", 0
+
+prog_01sm_init: rcall spi_master
+
+                ldi r16, 0
+                sts PROGRAM_DATA + 0, r16
+                sts PROGRAM_DATA + 1, r16
+                sts PROGRAM_DATA + 2, r16
+                rjmp prog_01sm_upd
+
+prog_01sm_fq:   lds r18, PROGRAM_DATA + 0
+                add r18, r16
+                andi r18, 8 - 1
+                sts PROGRAM_DATA + 0, r18
+                rjmp prog_01sm_upd
+                
+prog_01sm_by:   lds r18, PROGRAM_DATA + 1
+                add r18, r16
+                sts PROGRAM_DATA + 1, r18
+                rjmp prog_01sm_upd
+
+prog_01sm_cn:   lds r18, PROGRAM_DATA + 2
+                add r18, r16
+                sts PROGRAM_DATA + 2, r18
+                rjmp prog_01sm_upd
+
+prog_01sm_upd:  rcall tx_crlf
+                
+                ldi ZL, low(PROG_01SM_STRING << 1)
+                ldi ZH, high(PROG_01SM_STRING << 1)
+                rcall tx_string
+                movw X, Z
+
+                ldi ZL, low(PROG_01SM_FREQUENCIES << 1)
+                ldi ZH, high(PROG_01SM_FREQUENCIES << 1)
+                lds r16, PROGRAM_DATA + 0
+                andi r16, 8 - 1
+                ldi r17, 6
+                mul r16, r17
+                add ZL, r0
+                adc ZH, r1
+
+                lpm r17, Z+
+                lpm r18, Z+
+                lpm r19, Z+
+                adiw Z, 1
+                rcall tx_24_bit_b10
+                movw Y, Z
+
+                movw Z, X
+                rcall tx_string
+                movw X, Z
+
+                movw Z, Y
+                lpm r17, Z+
+                lpm r18, Z+
+                ldi r19, 0
+                sts PACKET_BUFFER + D01_TEST_SET_SR_PRESCALAR_OFFSET + 0, r17
+                sts PACKET_BUFFER + D01_TEST_SET_SR_PRESCALAR_OFFSET + 1, r18
+                rcall tx_24_bit_b10
+
+                movw Z, X
+                rcall tx_string
+
+                lds r17, PROGRAM_DATA + 1
+                sts PACKET_BUFFER + D01_TEST_SET_SR_BYTE_OFFSET, r17
+                rcall tx_8_bit_b16
+
+                rcall tx_string
+
+                lds r17, PROGRAM_DATA + 2
+                ldi r18, 0
+                ldi r19, 0
+                sts PACKET_BUFFER + D01_TEST_SET_SR_COUNT_OFFSET + 0, r17
+                sts PACKET_BUFFER + D01_TEST_SET_SR_COUNT_OFFSET + 1, r18
+                sts PACKET_BUFFER + D01_TEST_SET_SR_COUNT_OFFSET + 2, r19
+                rcall tx_24_bit_b10
+
+                rjmp menu_continue
+
+prog_01sm_tx:   ldi r16, D01_TEST_SET_SR_MODE_MANUAL
+                sts PACKET_BUFFER + D01_TEST_SET_SR_MODE_OFFSET, r16
+
+                ldi r16, D01_TEST_SET_SR
+                ldi r24, low(D01_TEST_SET_SR_DATA_SIZE)
+                ldi r25, high(D01_TEST_SET_SR_DATA_SIZE)
+                rcall tx_slave_set
+
+                rcall tx_crlf
+
+                ldi ZL, low(PROG_01SM_STRING_SENT << 1)
+                ldi ZH, high(PROG_01SM_STRING_SENT << 1)
+                rcall tx_string
+
+                rjmp menu_continue
+
+////////////////////////////////////////////////// Root/LC-8x8x8-RGB-01 (Led Cube Slave)/Shift Registers, auto load
+
+PROG_01SA_STEPS:
+.db "Load and read shift registers @ 250 kHz for 1 minute", 0 \ .dw prog_01sa_s0
+.db "Load and read shift registers @ 500 kHz for 1 minute", 0 \ .dw prog_01sa_s1
+.db "Load and read shift registers @ 1 MHz for 1 minute",   0 \ .dw prog_01sa_s2
+.db "Load and read shift registers @ 2 MHz for 1 minute",   0 \ .dw prog_01sa_s3
+.db "Load and read shift registers @ 4 MHz for 30 seconds", 0 \ .dw prog_01sa_s4
 .dw 0
 
-LC_SR_COUNT_S: .db " errors ", 0
+PROG_01SA_ERROR_STRING: .db " errors ", 0
 
-LC_SR:          rcall spi_master
+prog_01sa_init: rcall spi_master
+                ldi ZL, low(PROG_01SA_STEPS << 1)
+                ldi ZH, high(PROG_01SA_STEPS << 1)
+                rcall step_prog
+                rjmp menu_back
 
-                ldi ZL, low(LC_SR_STEPS << 1)
-                ldi ZH, high(LC_SR_STEPS << 1)
-                rjmp exec_steps
+.macro PROG_01SA_MACRO
+                ldi r18, low(D01_F_CPU / (2 * @0) - 1)
+                ldi r19, high(D01_F_CPU / (2 * @0) - 1)
+                ldi r20, low(@1 * (@0 / 8))
+                ldi r21, byte2(@1 * (@0 / 8))
+                ldi r22, byte3(@1 * (@0 / 8))
+                rjmp prog_01sa_s0_4
+.endmacro
 
-LC_SR_S1:       D01_TEST_SET_SR_FREQUENCY_AND_SECONDS_TO_PRESCALAR_AND_COUNT 250000, 60, r16, r17, r18, r19, r20
-                rjmp LC_SR_S1_5
+prog_01sa_s0:   PROG_01SA_MACRO 250000, 60
 
-LC_SR_S2:       D01_TEST_SET_SR_FREQUENCY_AND_SECONDS_TO_PRESCALAR_AND_COUNT 500000, 60, r16, r17, r18, r19, r20
-                rjmp LC_SR_S1_5
+prog_01sa_s1:   PROG_01SA_MACRO 500000, 60
 
-LC_SR_S3:       D01_TEST_SET_SR_FREQUENCY_AND_SECONDS_TO_PRESCALAR_AND_COUNT 1000000, 60, r16, r17, r18, r19, r20
-                rjmp LC_SR_S1_5
+prog_01sa_s2:   PROG_01SA_MACRO 1000000, 60
 
-LC_SR_S4:       D01_TEST_SET_SR_FREQUENCY_AND_SECONDS_TO_PRESCALAR_AND_COUNT 2000000, 60, r16, r17, r18, r19, r20
-                rjmp LC_SR_S1_5
+prog_01sa_s3:   PROG_01SA_MACRO 2000000, 60
 
-LC_SR_S5:       D01_TEST_SET_SR_FREQUENCY_AND_SECONDS_TO_PRESCALAR_AND_COUNT 4000000, 30, r16, r17, r18, r19, r20
-                rjmp LC_SR_S1_5
+prog_01sa_s4:   PROG_01SA_MACRO 4000000, 30
 
-LC_SR_S1_5:     sts PACKET_BUFFER + D01_TEST_SET_SR_PRESCALAR_OFFSET + 0, r16
-                sts PACKET_BUFFER + D01_TEST_SET_SR_PRESCALAR_OFFSET + 1, r17
-                sts PACKET_BUFFER + D01_TEST_SET_SR_COUNT_OFFSET + 0, r18
-                sts PACKET_BUFFER + D01_TEST_SET_SR_COUNT_OFFSET + 1, r19
-                sts PACKET_BUFFER + D01_TEST_SET_SR_COUNT_OFFSET + 2, r20
+prog_01sa_s0_4: ldi r16, D01_TEST_SET_SR_MODE_AUTO
+                ldi r17, 0xAA
+                
+                sts PACKET_BUFFER + D01_TEST_SET_SR_MODE_OFFSET, r16
+                sts PACKET_BUFFER + D01_TEST_SET_SR_BYTE_OFFSET, r17
+                sts PACKET_BUFFER + D01_TEST_SET_SR_PRESCALAR_OFFSET + 0, r18
+                sts PACKET_BUFFER + D01_TEST_SET_SR_PRESCALAR_OFFSET + 1, r19
+                sts PACKET_BUFFER + D01_TEST_SET_SR_COUNT_OFFSET + 0, r20
+                sts PACKET_BUFFER + D01_TEST_SET_SR_COUNT_OFFSET + 1, r21
+                sts PACKET_BUFFER + D01_TEST_SET_SR_COUNT_OFFSET + 2, r22
 
                 ldi r16, D01_TEST_SET_SR
                 ldi r24, low(D01_TEST_SET_SR_DATA_SIZE)
@@ -480,7 +792,7 @@ LC_SR_S1_5:     sts PACKET_BUFFER + D01_TEST_SET_SR_PRESCALAR_OFFSET + 0, r16
                 brne PC - 1
 
                 sbis PINREG, INT_PIN
-                rjmp step_ret_fail 
+                rjmp step_fail 
 
                 sbic PINREG, INT_PIN
                 rjmp PC - 1
@@ -494,9 +806,9 @@ LC_SR_S1_5:     sts PACKET_BUFFER + D01_TEST_SET_SR_PRESCALAR_OFFSET + 0, r16
                 lds r18, PACKET_BUFFER + D01_TEST_GET_SR_ERROR_COUNT_OFFSET + 1
                 lds r19, PACKET_BUFFER + D01_TEST_GET_SR_ERROR_COUNT_OFFSET + 2
                 
-                rcall tx_24_bit_int
-                ldi ZL, low(LC_SR_COUNT_S << 1)
-                ldi ZH, high(LC_SR_COUNT_S << 1)
+                rcall tx_24_bit_b10
+                ldi ZL, low(PROG_01SA_ERROR_STRING << 1)
+                ldi ZH, high(PROG_01SA_ERROR_STRING << 1)
                 rcall tx_string
 
                 lds r17, PACKET_BUFFER + D01_TEST_GET_SR_ERROR_COUNT_OFFSET + 0
@@ -508,158 +820,95 @@ LC_SR_S1_5:     sts PACKET_BUFFER + D01_TEST_SET_SR_PRESCALAR_OFFSET + 0, r16
                 cpc r18, r16
                 cpc r19, r16
                 breq PC + 2
-                rjmp step_ret_fail
-                rjmp step_ret_pass
+                rjmp step_fail
+                rjmp step_pass
 
-////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave) / Output, no LEDs installed
-////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 0 (back)
-////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 1
-////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 2
-////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 3
-////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 4
-////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 5
-////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 6
-////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave) / Output, installed LED slice 7 (front)
-////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave) / Output, all LEDs installed
+////////////////////////////////////////////////// Root/LC-8x8x8-RGB-01 (Led Cube Slave)/LEDs
 
-LC_OUTPUTS:     ldi r16, low(lc_outputs_lim)
-                ldi r17, high(lc_outputs_lim)
-                ldi r18, low(lc_outputs_tr)
-                ldi r19, high(lc_outputs_tr)
-                rjmp lc_out
+PROG_01L_MODES:
+.db "NON", 0 \ .dw PROG_01L_NON_STEPS, prog_01l_non
+.db "SL1", 0 \ .dw PROG_01L_SL_STEPS,  prog_01l_sl
+.db "SL2", 0 \ .dw PROG_01L_SL_STEPS,  prog_01l_sl
+.db "SL3", 0 \ .dw PROG_01L_SL_STEPS,  prog_01l_sl
+.db "SL4", 0 \ .dw PROG_01L_SL_STEPS,  prog_01l_sl
+.db "SL5", 0 \ .dw PROG_01L_SL_STEPS,  prog_01l_sl
+.db "SL6", 0 \ .dw PROG_01L_SL_STEPS,  prog_01l_sl
+.db "SL7", 0 \ .dw PROG_01L_SL_STEPS,  prog_01l_sl
+.db "SL8", 0 \ .dw PROG_01L_SL_STEPS,  prog_01l_sl
+.db "FUL", 0 \ .dw PROG_01L_FUL_STEPS, prog_01l_ful
 
-LC_SLICE0:      ldi r16, 0 * D01_CUBE_EDGE_SIZE
-                rjmp LC_SLICE
+PROG_01L_STRING:
+.db "Mode: ", 0, ", step ", 0, " of ", 0
 
-LC_SLICE1:      ldi r16, 1 * D01_CUBE_EDGE_SIZE
-                rjmp LC_SLICE
-
-LC_SLICE2:      ldi r16, 2 * D01_CUBE_EDGE_SIZE
-                rjmp LC_SLICE
-
-LC_SLICE3:      ldi r16, 3 * D01_CUBE_EDGE_SIZE
-                rjmp LC_SLICE
-
-LC_SLICE4:      ldi r16, 4 * D01_CUBE_EDGE_SIZE
-                rjmp LC_SLICE
-
-LC_SLICE5:      ldi r16, 5 * D01_CUBE_EDGE_SIZE
-                rjmp LC_SLICE
-
-LC_SLICE6:      ldi r16, 6 * D01_CUBE_EDGE_SIZE
-                rjmp LC_SLICE
-
-LC_SLICE7:      ldi r16, 7 * D01_CUBE_EDGE_SIZE
-                rjmp LC_SLICE
-
-LC_SLICE:       mov r2, r16
-                ldi r16, low(lc_slice_lim)
-                ldi r17, high(lc_slice_lim)
-                ldi r18, low(lc_slice_tr)
-                ldi r19, high(lc_slice_tr)
-                rjmp lc_out
-
-LC_FULL:        ldi r16, low(lc_full_lim)
-                ldi r17, high(lc_full_lim)
-                ldi r18, low(lc_full_tr)
-                ldi r19, high(lc_full_tr)
-                rjmp lc_out
-
-LC_OUTPUTS_MENU:
-.dw lc_out_prev \ .db 'p', "previous step", 0
-.dw lc_out_next \ .db 'n', "next step", 0
-.dw lc_out_quit \ .db 'q', "quit", 0
-.dw 0
-
-lc_out:         movw r5:r4, r17:r16
-                movw r7:r6, r19:r18
-
-                rcall spi_master
-
-                ldi ZL, low(LC_OUTPUTS_MENU << 1)
-                ldi ZH, high(LC_OUTPUTS_MENU << 1)
-                
-lc_out_menu:    lpm r24, Z+
-                lpm r25, Z+
-                adiw r25:r24, 0
-                breq lc_out_cont
-
-                lpm r17, Z+
-
-                ldi r16, '['
-                rcall tx_byte
-                mov r16, r17
-                rcall tx_byte
-                ldi r16, ']'
-                rcall tx_byte
-                ldi r16, ' '
-                rcall tx_byte
-                rcall tx_string_crlf
-
-                sbrc ZL, 0
-                adiw Z,1
-                rjmp lc_out_menu
-
-lc_out_cont:    clr r8
-                clr r9
-                rcall lc_out_change
-
-lc_out_rx:      rcall rx_byte
-
-                ldi ZL, low(LC_OUTPUTS_MENU << 1)
-                ldi ZH, high(LC_OUTPUTS_MENU << 1)
-
-lc_out_check:   lpm r24, Z+
-                lpm r25, Z+
-                adiw r25:r24, 0
-                breq lc_out_rx
-
-                lpm r17, Z+
-                cp r17, r16
-                breq lc_out_exec
-
-                lpm r17, Z+
-                tst r17
-                brne PC - 2
-
-                sbrc ZL, 0
-                adiw Z,1
-                rjmp lc_out_check
-
-lc_out_exec:    movw Z, r25:r24
-                icall
-                rjmp lc_out_rx
-
-lc_out_prev:    movw r25:r24, r9:r8
-                sbiw r25:r24, 1
-                brcc PC + 2
-                ret
-
-                movw r9:r8, r25:r24
-                rjmp lc_out_change
-
-lc_out_next:    movw Z, r5:r4
-                icall
-
-                movw r25:r24, r9:r8
-                adiw r25:r24, 1
-                cp r24, r16
-                cpc r25, r17
-                brlo PC + 2
-                ret
-
-                movw r9:r8, r25:r24
-                rjmp lc_out_change
-
-lc_out_quit:    pop r16
-                pop r16
-                ret
-
-LC_OUT_COLOR_SHORTHAND:
+PROG_01L_COLORS_SHORTHAND:
 .db "-RGYBMCW"
 
-lc_out_change:  movw Z, r7:r6
-                movw r25:r24, r9:r8
+prog_01l_init:  sts PROGRAM_DATA + 0, r16
+                
+                ldi r17, 0
+                sts PROGRAM_DATA + 1, r17
+                sts PROGRAM_DATA + 2, r17
+
+                ldi ZL, low(PROG_01L_MODES << 1)
+                ldi ZH, high(PROG_01L_MODES << 1)
+                ldi r17, 8
+                mul r16, r17
+                add ZL, r0
+                adc ZH, r1
+
+                sts PROGRAM_DATA + 3, ZL
+                sts PROGRAM_DATA + 4, ZH
+
+                adiw Z, 4
+                lpm r16, Z+
+                lpm r17, Z+
+                sts PROGRAM_DATA + 5, r16
+                sts PROGRAM_DATA + 6, r17
+
+                lpm r16, Z+
+                lpm r17, Z+
+                sts PROGRAM_DATA + 7, r16
+                sts PROGRAM_DATA + 8, r17
+
+                rcall spi_master
+                rjmp prog_01l_upd
+
+prog_01l_step:  lds r18, PROGRAM_DATA + 1
+                lds r19, PROGRAM_DATA + 2
+                add r18, r16
+                adc r19, r17
+
+                ldi r16, low(0)
+                ldi r17, high(0)
+                cp r18, r16
+                cpc r19, r17
+                brsh PC + 2
+                movw r19:r18, r17:r16
+
+                lds r16, PROGRAM_DATA + 5
+                lds r17, PROGRAM_DATA + 6
+                cp r16, r18
+                cpc r17, r19
+                brlo PC + 2
+                movw r19:r18, r17:r16
+
+                lds r16, PROGRAM_DATA + 1
+                lds r17, PROGRAM_DATA + 2
+                cp r18, r16
+                cpc r19, r17
+                brne PC + 2
+                rjmp menu_continue
+
+                sts PROGRAM_DATA + 1, r18
+                sts PROGRAM_DATA + 2, r19
+                rjmp prog_01l_upd
+
+prog_01l_upd:   lds r23, PROGRAM_DATA + 0
+                lds r24, PROGRAM_DATA + 1
+                lds r25, PROGRAM_DATA + 2
+                lds ZL, PROGRAM_DATA + 7
+                lds ZH, PROGRAM_DATA + 8
+
                 icall
 
                 sts PACKET_BUFFER + D01_TEST_SET_LEDS_START_LED_OFFSET, r16
@@ -674,6 +923,32 @@ lc_out_change:  movw Z, r7:r6
 
                 rcall tx_crlf
 
+                ldi ZL, low(PROG_01L_STRING << 1)
+                ldi ZH, high(PROG_01L_STRING << 1)
+                rcall tx_string
+                movw X, Z
+
+                lds ZL, PROGRAM_DATA + 3
+                lds ZH, PROGRAM_DATA + 4
+                rcall tx_string
+
+                movw Z, X
+                rcall tx_string
+
+                lds r17, PROGRAM_DATA + 1
+                lds r18, PROGRAM_DATA + 2
+                ldi r19, 0
+                rcall tx_24_bit_b10
+
+                rcall tx_string
+
+                lds r17, PROGRAM_DATA + 5
+                lds r18, PROGRAM_DATA + 6
+                ldi r19, 0
+                rcall tx_24_bit_b10
+
+                rcall tx_crlf
+
                 ldi r17, 0
                 ldi r18, D01_CUBE_EDGE_SIZE - 1
 
@@ -682,7 +957,7 @@ lc_out_change:  movw Z, r7:r6
                 lds r21, PACKET_BUFFER + D01_TEST_SET_LEDS_COLOR_OFFSET
                 lds r22, PACKET_BUFFER + D01_TEST_SET_LEDS_LEVEL_OFFSET
 
-lc_out_print:   ldi r16, '-'
+prog_01l_upd0:  ldi r16, '-'
                 cp r18, r22
                 brne PC + 3
                 mov r16, r18
@@ -693,15 +968,15 @@ lc_out_print:   ldi r16, '-'
                 ldi r16, '|'
                 rcall tx_byte
 
-lc_out_print1:  ldi r16, D01_TEST_SET_LEDS_COLOR_NONE
+prog_01l_upd1:  ldi r16, D01_TEST_SET_LEDS_COLOR_NONE
                 cp r17, r19
                 brlo PC + 4
                 cp r20, r17
                 brlo PC + 2
                 mov r16, r21
 
-                ldi ZL, low(LC_OUT_COLOR_SHORTHAND << 1)
-                ldi ZH, high(LC_OUT_COLOR_SHORTHAND << 1)
+                ldi ZL, low(PROG_01L_COLORS_SHORTHAND << 1)
+                ldi ZH, high(PROG_01L_COLORS_SHORTHAND << 1)
                 add ZL, r16
                 ldi r16, 0
                 adc ZH, r16
@@ -712,20 +987,18 @@ lc_out_print1:  ldi r16, D01_TEST_SET_LEDS_COLOR_NONE
                 inc r17
                 mov r16, r17
                 andi r16, D01_CUBE_EDGE_SIZE - 1
-                brne lc_out_print1
+                brne prog_01l_upd1
 
                 rcall tx_crlf
                 dec r18
 
                 cpi r17, D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE
-                brlo lc_out_print
-                ret
+                brlo prog_01l_upd0
+                rjmp menu_continue
 
-lc_outputs_lim: ldi r16, low(D01_CUBE_EDGE_SIZE + (D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE) * 4)
-                ldi r17, high(D01_CUBE_EDGE_SIZE + (D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE) * 4)
-                ret
+.equ PROG_01L_NON_STEPS = D01_CUBE_EDGE_SIZE + (D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE) * 4
 
-lc_outputs_tr:  ldi r16, low(D01_CUBE_EDGE_SIZE)
+prog_01l_non:   ldi r16, low(D01_CUBE_EDGE_SIZE)
                 ldi r17, high(D01_CUBE_EDGE_SIZE)
                 cp r24, r16
                 cpc r25, r17
@@ -739,18 +1012,16 @@ lc_outputs_tr:  ldi r16, low(D01_CUBE_EDGE_SIZE)
 
                 sbiw r25:r24, D01_CUBE_EDGE_SIZE
 
-                rcall lc_out_color
+                rcall prog_01l_col
 
                 mov r16, r24
                 mov r17, r24
                 ldi r19, D01_CUBE_EDGE_SIZE - 1
                 ret
 
-lc_slice_lim:   ldi r16, low((D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4)
-                ldi r17, high((D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4)
-                ret
+.equ PROG_01L_SL_STEPS = (D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4
 
-lc_slice_tr:    rcall lc_out_color
+prog_01l_sl:    rcall prog_01l_col
 
                 ldi r19, -1
 
@@ -768,15 +1039,14 @@ lc_slice_tr:    rcall lc_out_color
                 ldi r16, 0
                 ldi r17, D01_CUBE_EDGE_SIZE - 1
 
-                add r16, r2
-                add r17, r2
+                dec r23
+                add r16, r23
+                add r17, r23
                 ret
 
-lc_full_lim:    ldi r16, low((D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4)
-                ldi r17, high((D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4)
-                ret
+.equ PROG_01L_FUL_STEPS = (D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4
 
-lc_full_tr:     rcall lc_out_color
+prog_01l_ful:   rcall prog_01l_col
 
                 ldi r19, -1
 
@@ -797,7 +1067,7 @@ lc_full_tr:     rcall lc_out_color
                 ldi r17, D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE - 1
                 ret
 
-lc_out_color:   mov r18, r24
+prog_01l_col:   mov r18, r24
                 andi r18, 0x03
 
                 lsr r25
