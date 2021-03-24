@@ -86,7 +86,6 @@ loop:           brtc loop
                 brne PC + 2
                 rjmp TEST_SET_INT
 
-
                 cpi SPI_OPCODE_REGISTER, D01_TEST_SET_SR
                 brne PC + 2
                 rjmp TEST_SET_SR
@@ -254,17 +253,16 @@ TEST_SET_SR:    sbi INT_PORT, INT_PIN
                 rjmp PC + 2
                 rcall TEST_SET_SR_AUT
 
-                ldi r16, high(UBRR0_INIT)
-                sts UBRR0H, r16
                 ldi r16, low(UBRR0_INIT)
+                ldi r17, high(UBRR0_INIT)
+
+                sts UBRR0H, r17
                 sts UBRR0L, r16
 
                 cbi INT_PORT, INT_PIN
                 rjmp loop
 
-TEST_SET_SR_MAN:cbi ENABLE_PORT, ENABLE_PIN ; must be carefull what you load in SR because of this
-
-                ldi r16, low(1)
+TEST_SET_SR_MAN:ldi r16, low(1)
                 ldi r17, byte2(1)
                 ldi r18, byte3(1)
 
@@ -278,6 +276,14 @@ set_sr_loop0:   lds r15, UCSR0A
                 sbc r8, r17
                 sbc r9, r18
                 brne set_sr_loop0
+
+                sbi LATCH_PORT, LATCH_PIN
+                ldi r16, 0
+                dec r16
+                brne PC - 1
+                cbi LATCH_PORT, LATCH_PIN
+
+                cbi ENABLE_PORT, ENABLE_PIN ; must be carefull what you load in SR because of this
                 ret         
 
 TEST_SET_SR_AUT:sbi ENABLE_PORT, ENABLE_PIN
@@ -410,7 +416,7 @@ set_leds_loop:  clr r11
                 lds r11, UCSR0A
                 sbrs r11, UDRE0
                 rjmp PC - 3
-                sts UDR0, r14 
+                sts UDR0, r14
 
                 lds r11, UCSR0A
                 sbrs r11, UDRE0
@@ -443,11 +449,10 @@ set_leds_end:   ldi r16, 1 << (D01_CUBE_EDGE_SIZE - 1)
                 sts UDR0, r16
 
                 sbi LATCH_PORT, LATCH_PIN
-
                 ldi r16, 0
                 dec r16
                 brne PC - 1
+                cbi LATCH_PORT, LATCH_PIN
 
                 cbi ENABLE_PORT, ENABLE_PIN
-                cbi LATCH_PORT, LATCH_PIN
                 rjmp loop

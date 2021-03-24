@@ -17,22 +17,22 @@ start:          ldi r16, low(RAMEND)
                 ldi r17, 32
                 rcall tx_byte_repeat
 
-                ldi r16, low(MENU_ROOT)
-                ldi r17, high(MENU_ROOT)
+                ldi r16, low(MENU_ROOT << 1)
+                ldi r17, high(MENU_ROOT << 1)
                 rcall menu_nav
                 
                 rjmp PC
 
 MENU_ROOT:
 .db "Root", 0
-.db '0', "LC-8x8x8-RGB-00 (Master)",         0 \ .dw menu_nav, MENU_00
-.db '1', "LC-8x8x8-RGB-01 (Led Cube Slave)", 0 \ .dw menu_nav, MENU_01
+.db '0', "LC-8x8x8-RGB-00 (Master)",         0 \ .dw menu_nav, MENU_00 << 1
+.db '1', "LC-8x8x8-RGB-01 (Led Cube Slave)", 0 \ .dw menu_nav, MENU_01 << 1
 .dw 0
 .dw 0, 0
 
 MENU_00:
 .db "Root/LC-8x8x8-RGB-00 (Master)", 0
-.db 'i', "Interface", 0 \ .dw menu_nav, MENU_00I
+.db 'i', "Interface", 0 \ .dw menu_nav, MENU_00I << 1
 .db 'b', "Back",      0 \ .dw menu_back, 0
 .dw 0
 .dw 0, 0
@@ -51,10 +51,10 @@ MENU_00I:
 
 MENU_01:
 .db "Root/LC-8x8x8-RGB-01 (Led Cube Slave)", 0
-.db 'i', "Interface",                    0 \ .dw menu_nav, MENU_01I
-.db 'm', "Shift Registers, manual load", 0 \ .dw menu_nav, MENU_01SM
-.db 'a', "Shift Registers, auto load",   0 \ .dw menu_nav, MENU_01SA
-.db 'l', "LEDs",                         0 \ .dw menu_nav, MENU_01L
+.db 'i', "Interface",                    0 \ .dw menu_nav, MENU_01I << 1
+.db 'm', "Shift Registers, manual load", 0 \ .dw menu_nav, MENU_01SM << 1
+.db 'a', "Shift Registers, auto load",   0 \ .dw menu_nav, MENU_01SA << 1
+.db 'l', "LEDs",                         0 \ .dw menu_nav, MENU_01L << 1
 .db 'b', "Back",                         0 \ .dw menu_back, 0
 .dw 0
 .dw 0, 0
@@ -88,21 +88,21 @@ MENU_01SA:
 
 MENU_01L:
 .db "Root/LC-8x8x8-RGB-01 (Led Cube Slave)/LEDs", 0
-.db '0', "None installed",               0 \ .dw prog_01l_init, 0
-.db '1', "Installed slice 1 (back)",     0 \ .dw prog_01l_init, 1
-.db '2', "Installed slice 2",            0 \ .dw prog_01l_init, 2
-.db '3', "Installed slice 3",            0 \ .dw prog_01l_init, 3
-.db '4', "Installed slice 4",            0 \ .dw prog_01l_init, 4
-.db '5', "Installed slice 5",            0 \ .dw prog_01l_init, 5
-.db '6', "Installed slice 6",            0 \ .dw prog_01l_init, 6
-.db '7', "Installed slice 7",            0 \ .dw prog_01l_init, 7
-.db '8', "Installed slice 8 (front)",    0 \ .dw prog_01l_init, 8
-.db '9', "All installed",                0 \ .dw prog_01l_init, 9
+.db '0', "None installed",               0 \ .dw prog_01l_mode, 0
+.db '1', "Installed slice 1 (back)",     0 \ .dw prog_01l_mode, 1
+.db '2', "Installed slice 2",            0 \ .dw prog_01l_mode, 2
+.db '3', "Installed slice 3",            0 \ .dw prog_01l_mode, 3
+.db '4', "Installed slice 4",            0 \ .dw prog_01l_mode, 4
+.db '5', "Installed slice 5",            0 \ .dw prog_01l_mode, 5
+.db '6', "Installed slice 6",            0 \ .dw prog_01l_mode, 6
+.db '7', "Installed slice 7",            0 \ .dw prog_01l_mode, 7
+.db '8', "Installed slice 8 (front)",    0 \ .dw prog_01l_mode, 8
+.db '9', "All installed",                0 \ .dw prog_01l_mode, 9
 .db 'p', "Previous step",                0 \ .dw prog_01l_step, -1
 .db 'P', "Previous 100 steps",           0 \ .dw prog_01l_step, -100
 .db 'n', "Next step",                    0 \ .dw prog_01l_step, 1
 .db 'N', "Next 100 steps",               0 \ .dw prog_01l_step, 100
-.db 'b', "Back",                         0 \ .dw menu_back
+.db 'b', "Back",                         0 \ .dw menu_back, 0
 .dw 0
 .dw prog_01l_init, 0
 
@@ -119,7 +119,7 @@ menu_nav_ref:   movw Z, r3:r2
                 ldi r16, ' '
                 rcall tx_byte
 
-                rcall tx_string
+                rcall tx_string_crlf
                 sbrc ZL, 0
                 adiw Z, 1
 
@@ -136,7 +136,7 @@ menu_nav_opt:   lpm r17, Z+
                 ldi r16, ' '
                 rcall tx_byte
 
-                rcall tx_string
+                rcall tx_string_crlf
                 sbrc ZL, 0
                 adiw Z, 1
                 adiw Z, 4
@@ -227,7 +227,7 @@ FAIL_STRING:    .db "FAIL", 0
 RESULT_STRING:  .db "RESULT: ", 0
 
 step_prog:      ldi r16, RET_STEP_PASS
-                mov r4, r16
+                mov r2, r16
 
 step_prog1:     lpm r16, Z
                 tst r16
@@ -248,9 +248,10 @@ step_prog1:     lpm r16, Z
 
                 push ZL
                 push ZH
-                push r4
+                push r2
+                movw Z, r17:r16
                 icall ; these should return with step_pass or step_fail
-                pop r4
+                pop r2
                 pop ZH
                 pop ZL
 
@@ -258,7 +259,7 @@ step_prog1:     lpm r16, Z
                 breq step_prog1
 
                 ldi r16, RET_STEP_FAIL
-                mov r4, r16
+                mov r2, r16
                 rjmp step_prog1
 
 step_prog_exit: rcall tx_crlf
@@ -266,7 +267,7 @@ step_prog_exit: rcall tx_crlf
                 ldi ZH, high(RESULT_STRING << 1)
                 rcall tx_string
                 
-                mov r16, r4
+                mov r16, r2
                 cpi r16, RET_STEP_PASS
                 breq step_pass
                 rjmp step_fail
@@ -276,7 +277,6 @@ step_pass:      ldi ZL, low(PASS_STRING << 1)
                 rcall tx_string_crlf
 
                 ldi r16, RET_STEP_PASS
-                mov r4, r16
                 ret
 
 step_fail:      ldi ZL, low(FAIL_STRING << 1)
@@ -284,7 +284,6 @@ step_fail:      ldi ZL, low(FAIL_STRING << 1)
                 rcall tx_string_crlf
                 
                 ldi r16, RET_STEP_FAIL
-                mov r4, r16
                 ret
 
 ////////////////////////////////////////////////// Comms
@@ -299,7 +298,7 @@ tx_4_bit_b16:   andi r16, 0x0F
                 subi r16, -'0'
                 cpi r16, '9' + 1
                 brlo PC + 2
-                subi r16, 'A' - '9' - 1
+                subi r16, -('A' - '9' - 1)
                 rjmp tx_byte
 
 tx_24_bit_b10:  clt
@@ -442,28 +441,28 @@ rx_byte:        sbis UCSRA, RXC
                 in r16, UDR
                 ret
 
-spi_master:     ldi r16, MASTER_PORT_INIT
-                out PORT, r16
-                ldi r16, MASTER_DDR_INIT
-                out DDR, r16
-                ldi r16, MASTER_SPCR_INIT
-                out SPCR, r16
+spi_master:     ldi r18, MASTER_PORT_INIT
+                out PORT, r18
+                ldi r18, MASTER_DDR_INIT
+                out DDR, r18
+                ldi r18, MASTER_SPCR_INIT
+                out SPCR, r18
                 ret
 
-spi_slave:      ldi r16, SLAVE_PORT_INIT
-                out PORT, r16
-                ldi r16, SLAVE_DDR_INIT
-                out DDR, r16
-                ldi r16, SLAVE_SPCR_INIT
-                out SPCR, r16
+spi_slave:      ldi r18, SLAVE_PORT_INIT
+                out PORT, r18
+                ldi r18, SLAVE_DDR_INIT
+                out DDR, r18
+                ldi r18, SLAVE_SPCR_INIT
+                out SPCR, r18
                 ret
 
-spi_close:      ldi r16, CLOSE_SPCR_INIT
-                out SPCR, r16
-                ldi r16, CLOSE_DDR_INIT
-                out DDR, r16
-                ldi r16, CLOSE_PORT_INIT
-                out PORT, r16
+spi_close:      ldi r18, CLOSE_SPCR_INIT
+                out SPCR, r18
+                ldi r18, CLOSE_DDR_INIT
+                out DDR, r18
+                ldi r18, CLOSE_PORT_INIT
+                out PORT, r18
                 ret
 
 tx_slave_set:   cbi PORT, SS_PIN
@@ -525,8 +524,7 @@ PROG_01I_STEPS:
 prog_01i_init:  rcall spi_master
                 ldi ZL, low(PROG_01I_STEPS << 1)
                 ldi ZH, high(PROG_01I_STEPS << 1)
-                rcall step_prog
-                rjmp menu_back
+                rjmp step_prog
 
 prog_01i_s0:    sbi SPSR, SPI2X
                 ldi r16, MASTER_SPCR_INIT | (1 << SPR1)
@@ -550,15 +548,14 @@ prog_01i_s3:    cbi SPSR, SPI2X
 
 prog_01i_s0_3:  ldi XL, low(PACKET_BUFFER)
                 ldi XH, high(PACKET_BUFFER)
-                ldi r24, low(PACKET_BUFFER + D01_TEST_SET_DATA_SIZE)
-                ldi r25, high(PACKET_BUFFER + D01_TEST_SET_DATA_SIZE)
+                ldi r24, low(D01_TEST_SET_DATA_SIZE)
+                ldi r25, high(D01_TEST_SET_DATA_SIZE)
                 clr r16
 
                 st X+, r16
                 inc r16
-                cp XL, r24
-                cpc XH, r25
-                brlo PC - 4
+                sbiw r25:r24, 1
+                brne PC - 3
 
                 ldi r16, D01_TEST_SET
                 ldi r24, low(D01_TEST_SET_DATA_SIZE)
@@ -572,8 +569,8 @@ prog_01i_s0_3:  ldi XL, low(PACKET_BUFFER)
 
                 ldi XL, low(PACKET_BUFFER)
                 ldi XH, high(PACKET_BUFFER)
-                ldi r24, low(PACKET_BUFFER + D01_TEST_GET_DATA_SIZE)
-                ldi r25, high(PACKET_BUFFER + D01_TEST_GET_DATA_SIZE)
+                ldi r24, low(D01_TEST_GET_DATA_SIZE)
+                ldi r25, high(D01_TEST_GET_DATA_SIZE)
                 clr r16
 
                 ld r17, X+
@@ -581,9 +578,8 @@ prog_01i_s0_3:  ldi XL, low(PACKET_BUFFER)
                 breq PC + 2
                 rjmp step_fail
                 inc r16
-                cp XL, r24
-                cpc XH, r25
-                brlo PC - 7
+                sbiw r25:r24, 1
+                brne PC - 6
 
                 rjmp step_pass
 
@@ -635,10 +631,10 @@ PROG_01SM_MACRO 4000000
 PROG_01SM_MACRO 8000000
 
 PROG_01SM_STRING:
-.db "Frequency: ", 0, " Hz (prescalar: ", 0, "), byte: 0x", 0, " , count: ", 0
+.db "Frequency: ", 0, " Hz (Prescalar: ", 0, "), Byte: 0x", 0, ", Count: ", 0
 
 PROG_01SM_STRING_SENT:
-.db "Sent!", 0
+.db "Sent !", 0
 
 prog_01sm_init: rcall spi_master
 
@@ -648,21 +644,18 @@ prog_01sm_init: rcall spi_master
                 sts PROGRAM_DATA + 2, r16
                 rjmp prog_01sm_upd
 
-prog_01sm_fq:   lds r18, PROGRAM_DATA + 0
+.macro PROG_01SM_MACRO1
+                lds r18, PROGRAM_DATA + @0
                 add r18, r16
-                andi r18, 8 - 1
-                sts PROGRAM_DATA + 0, r18
+                sts PROGRAM_DATA + @0, r18
                 rjmp prog_01sm_upd
-                
-prog_01sm_by:   lds r18, PROGRAM_DATA + 1
-                add r18, r16
-                sts PROGRAM_DATA + 1, r18
-                rjmp prog_01sm_upd
+.endmacro
 
-prog_01sm_cn:   lds r18, PROGRAM_DATA + 2
-                add r18, r16
-                sts PROGRAM_DATA + 2, r18
-                rjmp prog_01sm_upd
+prog_01sm_fq:   PROG_01SM_MACRO1 0
+                
+prog_01sm_by:   PROG_01SM_MACRO1 1
+
+prog_01sm_cn:   PROG_01SM_MACRO1 2
 
 prog_01sm_upd:  rcall tx_crlf
                 
@@ -726,6 +719,13 @@ prog_01sm_tx:   ldi r16, D01_TEST_SET_SR_MODE_MANUAL
                 ldi r25, high(D01_TEST_SET_SR_DATA_SIZE)
                 rcall tx_slave_set
 
+                ldi r16, 0
+                dec r16
+                brne PC - 1
+
+                sbic PINREG, INT_PIN
+                rjmp PC - 1
+
                 rcall tx_crlf
 
                 ldi ZL, low(PROG_01SM_STRING_SENT << 1)
@@ -749,8 +749,7 @@ PROG_01SA_ERROR_STRING: .db " errors ", 0
 prog_01sa_init: rcall spi_master
                 ldi ZL, low(PROG_01SA_STEPS << 1)
                 ldi ZH, high(PROG_01SA_STEPS << 1)
-                rcall step_prog
-                rjmp menu_back
+                rjmp step_prog
 
 .macro PROG_01SA_MACRO
                 ldi r18, low(D01_F_CPU / (2 * @0) - 1)
@@ -792,7 +791,7 @@ prog_01sa_s0_4: ldi r16, D01_TEST_SET_SR_MODE_AUTO
                 brne PC - 1
 
                 sbis PINREG, INT_PIN
-                rjmp step_fail 
+                rjmp step_fail
 
                 sbic PINREG, INT_PIN
                 rjmp PC - 1
@@ -826,25 +825,27 @@ prog_01sa_s0_4: ldi r16, D01_TEST_SET_SR_MODE_AUTO
 ////////////////////////////////////////////////// Root/LC-8x8x8-RGB-01 (Led Cube Slave)/LEDs
 
 PROG_01L_MODES:
-.db "NON", 0 \ .dw PROG_01L_NON_STEPS, prog_01l_non
-.db "SL1", 0 \ .dw PROG_01L_SL_STEPS,  prog_01l_sl
-.db "SL2", 0 \ .dw PROG_01L_SL_STEPS,  prog_01l_sl
-.db "SL3", 0 \ .dw PROG_01L_SL_STEPS,  prog_01l_sl
-.db "SL4", 0 \ .dw PROG_01L_SL_STEPS,  prog_01l_sl
-.db "SL5", 0 \ .dw PROG_01L_SL_STEPS,  prog_01l_sl
-.db "SL6", 0 \ .dw PROG_01L_SL_STEPS,  prog_01l_sl
-.db "SL7", 0 \ .dw PROG_01L_SL_STEPS,  prog_01l_sl
-.db "SL8", 0 \ .dw PROG_01L_SL_STEPS,  prog_01l_sl
-.db "FUL", 0 \ .dw PROG_01L_FUL_STEPS, prog_01l_ful
+.db "NON", 0 \ .dw PROG_01L_NON_STEP_COUNT, prog_01l_non
+.db "SL1", 0 \ .dw PROG_01L_SL_STEP_COUNT,  prog_01l_sl
+.db "SL2", 0 \ .dw PROG_01L_SL_STEP_COUNT,  prog_01l_sl
+.db "SL3", 0 \ .dw PROG_01L_SL_STEP_COUNT,  prog_01l_sl
+.db "SL4", 0 \ .dw PROG_01L_SL_STEP_COUNT,  prog_01l_sl
+.db "SL5", 0 \ .dw PROG_01L_SL_STEP_COUNT,  prog_01l_sl
+.db "SL6", 0 \ .dw PROG_01L_SL_STEP_COUNT,  prog_01l_sl
+.db "SL7", 0 \ .dw PROG_01L_SL_STEP_COUNT,  prog_01l_sl
+.db "SL8", 0 \ .dw PROG_01L_SL_STEP_COUNT,  prog_01l_sl
+.db "FUL", 0 \ .dw PROG_01L_FUL_STEP_COUNT, prog_01l_ful
 
 PROG_01L_STRING:
-.db "Mode: ", 0, ", step ", 0, " of ", 0
+.db "Mode: ", 0, ", Step ", 0, " of ", 0
 
 PROG_01L_COLORS_SHORTHAND:
 .db "-RGYBMCW"
 
-prog_01l_init:  sts PROGRAM_DATA + 0, r16
-                
+prog_01l_init:  rcall spi_master
+
+prog_01l_mode:  sts PROGRAM_DATA + 0, r16
+
                 ldi r17, 0
                 sts PROGRAM_DATA + 1, r17
                 sts PROGRAM_DATA + 2, r17
@@ -870,7 +871,6 @@ prog_01l_init:  sts PROGRAM_DATA + 0, r16
                 sts PROGRAM_DATA + 7, r16
                 sts PROGRAM_DATA + 8, r17
 
-                rcall spi_master
                 rjmp prog_01l_upd
 
 prog_01l_step:  lds r18, PROGRAM_DATA + 1
@@ -882,15 +882,17 @@ prog_01l_step:  lds r18, PROGRAM_DATA + 1
                 ldi r17, high(0)
                 cp r18, r16
                 cpc r19, r17
-                brsh PC + 2
+                brge PC + 2
                 movw r19:r18, r17:r16
 
                 lds r16, PROGRAM_DATA + 5
                 lds r17, PROGRAM_DATA + 6
-                cp r16, r18
-                cpc r17, r19
-                brlo PC + 2
+                cp r18, r16
+                cpc r19, r17
+                brlt PC + 4
                 movw r19:r18, r17:r16
+                subi r18, low(1)
+                sbci r19, high(1)
 
                 lds r16, PROGRAM_DATA + 1
                 lds r17, PROGRAM_DATA + 2
@@ -938,6 +940,8 @@ prog_01l_upd:   lds r23, PROGRAM_DATA + 0
                 lds r17, PROGRAM_DATA + 1
                 lds r18, PROGRAM_DATA + 2
                 ldi r19, 0
+                subi r17, low(-1)
+                sbci r18, high(-1)
                 rcall tx_24_bit_b10
 
                 rcall tx_string
@@ -996,7 +1000,7 @@ prog_01l_upd1:  ldi r16, D01_TEST_SET_LEDS_COLOR_NONE
                 brlo prog_01l_upd0
                 rjmp menu_continue
 
-.equ PROG_01L_NON_STEPS = D01_CUBE_EDGE_SIZE + (D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE) * 4
+.equ PROG_01L_NON_STEP_COUNT = D01_CUBE_EDGE_SIZE + (D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE) * 4
 
 prog_01l_non:   ldi r16, low(D01_CUBE_EDGE_SIZE)
                 ldi r17, high(D01_CUBE_EDGE_SIZE)
@@ -1019,7 +1023,7 @@ prog_01l_non:   ldi r16, low(D01_CUBE_EDGE_SIZE)
                 ldi r19, D01_CUBE_EDGE_SIZE - 1
                 ret
 
-.equ PROG_01L_SL_STEPS = (D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4
+.equ PROG_01L_SL_STEP_COUNT = (D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4
 
 prog_01l_sl:    rcall prog_01l_col
 
@@ -1040,11 +1044,14 @@ prog_01l_sl:    rcall prog_01l_col
                 ldi r17, D01_CUBE_EDGE_SIZE - 1
 
                 dec r23
-                add r16, r23
-                add r17, r23
+                ldi r20, D01_CUBE_EDGE_SIZE
+                mul r23, r20
+
+                add r16, r0
+                add r17, r0
                 ret
 
-.equ PROG_01L_FUL_STEPS = (D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4
+.equ PROG_01L_FUL_STEP_COUNT = (D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE + 1) * D01_CUBE_EDGE_SIZE * 4
 
 prog_01l_ful:   rcall prog_01l_col
 
