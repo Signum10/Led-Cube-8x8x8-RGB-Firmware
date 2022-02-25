@@ -262,7 +262,10 @@ TEST_SET_SR:    sbi INT_PORT, INT_PIN
                 cbi INT_PORT, INT_PIN
                 rjmp loop
 
-TEST_SET_SR_MAN:ldi r16, low(1)
+TEST_SET_SR_MAN:ldi r16, 1 << TXC0
+                sts UCSR0A, r16
+
+                ldi r16, low(1)
                 ldi r17, byte2(1)
                 ldi r18, byte3(1)
 
@@ -276,6 +279,10 @@ set_sr_loop0:   lds r15, UCSR0A
                 sbc r8, r17
                 sbc r9, r18
                 brne set_sr_loop0
+
+set_sr_loop0a:  lds r15, UCSR0A
+                sbrs r15, TXC0
+                rjmp set_sr_loop0a
 
                 sbi LATCH_PORT, LATCH_PIN
                 ldi r16, 0

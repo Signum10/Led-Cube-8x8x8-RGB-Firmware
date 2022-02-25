@@ -33,7 +33,7 @@
 
 ; USART used in SPI master mode to load shift registers
 .equ UCSR0B_INIT = (1 << RXEN0) | (1 << TXEN0)
-.equ UCSR0C_INIT = (1 << UMSEL00) | (1 << UMSEL01) | (1 << UCPOL0)
+.equ UCSR0C_INIT = (1 << UMSEL00) | (1 << UMSEL01)
 .equ UBRR0_INIT = (F_CPU / (2 * 2000000))
 
 ; TIMER1 used to blink LED
