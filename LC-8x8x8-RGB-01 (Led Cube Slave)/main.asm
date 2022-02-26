@@ -416,10 +416,6 @@ set_leds_loop:  clr r11
                 and r20, r15
                 brne set_leds_loop
 
-                ldi r20, D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE
-                cp r20, r15
-                breq set_leds_end
-
                 lds r11, UCSR0A
                 sbrs r11, UDRE0
                 rjmp PC - 3
@@ -435,9 +431,11 @@ set_leds_loop:  clr r11
                 rjmp PC - 3
                 sts UDR0, r12
 
-                rjmp set_leds_loop
+                ldi r20, D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE
+                cp r20, r15
+                brne set_leds_loop
 
-set_leds_end:   ldi r16, 1 << (D01_CUBE_EDGE_SIZE - 1)
+                ldi r16, 1 << (D01_CUBE_EDGE_SIZE - 1)
 
                 tst r19
                 breq PC + 4
@@ -450,10 +448,17 @@ set_leds_end:   ldi r16, 1 << (D01_CUBE_EDGE_SIZE - 1)
                 com r16
                 .endif
 
+                ldi r17, 1 << TXC0
+                sts UCSR0A, r17
+
                 lds r11, UCSR0A
                 sbrs r11, UDRE0
                 rjmp PC - 3
                 sts UDR0, r16
+
+                lds r11, UCSR0A
+                sbrs r11, TXC0
+                rjmp PC - 3
 
                 sbi LATCH_PORT, LATCH_PIN
                 ldi r16, 0
