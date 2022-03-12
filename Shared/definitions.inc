@@ -5,12 +5,29 @@
 .equ D01_LED_COLOR_BITS = 4 ; How many bits per color
 .equ D01_FRAME_SIZE     = ((D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE) * (D01_LED_COLORS * D01_LED_COLOR_BITS)) / 8
 
-.equ D01_TEST_SET       = 0
-.equ D01_TEST_GET       = 1
-.equ D01_TEST_SET_INT   = 2
-.equ D01_TEST_SET_SR    = 3
-.equ D01_TEST_GET_SR    = 4
-.equ D01_TEST_SET_LEDS  = 5
+.equ D01_CMD_GET_DEVID  = 0
+.equ D01_CMD_GET_INT    = 1
+.equ D01_CMD_SET_FRAME  = 2
+.equ D01_CMD_SET_BRIGHT = 3
+.equ D01_TEST_SET       = 4
+.equ D01_TEST_GET       = 5
+.equ D01_TEST_SET_INT   = 6
+.equ D01_TEST_SET_SR    = 7
+.equ D01_TEST_GET_SR    = 8
+.equ D01_TEST_SET_LEDS  = 9
+
+.equ D01_CMD_GET_DEVID_DATA_SIZE        = 1
+.equ D01_CMD_GET_DEVID_VALUE            = 0xAA
+
+.equ D01_CMD_GET_INT_DATA_SIZE          = 1
+.equ D01_CMD_GET_INT_FLAG_RESET         = 0
+.equ D01_CMD_GET_INT_FLAG_NEW_FRAME_RDY = 1
+
+.equ D01_CMD_SET_FRAME_DATA_SIZE        = D01_FRAME_SIZE
+
+.equ D01_CMD_SET_BRIGHT_DATA_SIZE       = 1
+.equ D01_CMD_SET_BRIGHT_MIN             = 0
+.equ D01_CMD_SET_BRIGHT_MAX             = 15
 
 .equ D01_TEST_SET_DATA_SIZE             = D01_FRAME_SIZE
 
