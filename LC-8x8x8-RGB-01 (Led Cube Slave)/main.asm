@@ -383,8 +383,11 @@ INIT_NORMAL_MD: cli
                 ldi r16, D01_CMD_SET_BRIGHT_MAX
                 mov CURRENT_BRIGHT, r16
 
-                clr CURRENT_STAGE
-                clr CURRENT_LEVEL
+                ldi r16, (1 << D01_LED_COLOR_BITS) - 2
+                mov CURRENT_STAGE, r16
+
+                ldi r16, D01_CUBE_EDGE_SIZE - 1
+                mov CURRENT_LEVEL, r16
 
                 ldi r16, 1 << TXC0
                 sts UCSR0A, r16
@@ -467,7 +470,38 @@ INIT_TEST_MD:   cli
 
 //////////////////////////////////////////////////
 
-FRAME_STEP:     mov r16, CURRENT_BRIGHT
+FRAME_STEP:     inc CURRENT_STAGE
+                ldi r16, (1 << D01_LED_COLOR_BITS) - 1
+                cp CURRENT_STAGE, r16
+                brlo FRAME_STEP_EXEC
+                clr CURRENT_STAGE
+
+                inc CURRENT_LEVEL
+                ldi r16, D01_CUBE_EDGE_SIZE
+                cp CURRENT_LEVEL, r16
+                brlo FRAME_STEP_EXEC
+                clr CURRENT_LEVEL
+
+                ldi r16, 1 << D01_CMD_GET_INT_FLAG_NEW_FRAME_RDY
+                rcall SET_EXT_INT
+
+                sbis FLAGS, FLAG_FRAME_CHANGED
+                rjmp PC + 7
+                cbi FLAGS, FLAG_FRAME_CHANGED
+                cli
+                movw r17:r16, CURRENT_FRAME_H:CURRENT_FRAME_L
+                movw CURRENT_FRAME_H:CURRENT_FRAME_L, NEXT_FRAME_H:NEXT_FRAME_L
+                movw NEXT_FRAME_H:NEXT_FRAME_L, r17:r16
+                sei
+
+                sbis FLAGS, FLAG_BRIGHT_CHANGED
+                rjmp PC + 6
+                cbi FLAGS, FLAG_BRIGHT_CHANGED
+                lds r16, CMD_SET_BRIGHT_DATA
+                andi r16, (1 << D01_LED_COLOR_BITS) - 1
+                movw CURRENT_BRIGHT, r16
+
+FRAME_STEP_EXEC:mov r16, CURRENT_BRIGHT
 
                 mov r17, CURRENT_STAGE
                 swap r17
@@ -549,42 +583,6 @@ FRAME_STEP:     mov r16, CURRENT_BRIGHT
                 .endif
 
                 sts UDR0, r19
-
-                inc CURRENT_STAGE
-                ldi r16, (1 << D01_LED_COLOR_BITS) - 1
-                cp CURRENT_STAGE, r16
-                breq PC + 2
-                ret
-
-                clr CURRENT_STAGE
-
-                inc CURRENT_LEVEL
-                ldi r16, D01_CUBE_EDGE_SIZE
-                cp CURRENT_LEVEL, r16
-                breq PC + 2
-                ret
-
-                clr CURRENT_LEVEL
-
-                ldi r16, 1 << D01_CMD_GET_INT_FLAG_NEW_FRAME_RDY
-                rcall SET_EXT_INT
-
-                sbis FLAGS, FLAG_FRAME_CHANGED
-                rjmp PC + 7
-                cbi FLAGS, FLAG_FRAME_CHANGED
-                cli
-                movw r17:r16, CURRENT_FRAME_H:CURRENT_FRAME_L
-                movw CURRENT_FRAME_H:CURRENT_FRAME_L, NEXT_FRAME_H:NEXT_FRAME_L
-                movw NEXT_FRAME_H:NEXT_FRAME_L, r17:r16
-                sei
-
-                sbis FLAGS, FLAG_BRIGHT_CHANGED
-                rjmp PC + 6
-                cbi FLAGS, FLAG_BRIGHT_CHANGED
-                lds r16, CMD_SET_BRIGHT_DATA
-                andi r16, (1 << D01_LED_COLOR_BITS) - 1
-                movw CURRENT_BRIGHT, r16
-
                 ret
 
 //////////////////////////////////////////////////
