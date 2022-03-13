@@ -161,9 +161,6 @@ loop_frame:     sbis FLAGS, FLAG_FRAME_STEP_TRIG
                 rjmp loop_spi
                 cbi FLAGS, FLAG_FRAME_STEP_TRIG
 
-                ldi r16, 1 << D01_CMD_GET_INT_FLAG_NEW_FRAME_RDY
-                rcall SET_EXT_INT
-
                 rcall FRAME_STEP
                 rjmp loop_spi
 
@@ -470,23 +467,7 @@ INIT_TEST_MD:   cli
 
 //////////////////////////////////////////////////
 
-FRAME_STEP:     sbis FLAGS, FLAG_FRAME_CHANGED
-                rjmp PC + 7
-                cbi FLAGS, FLAG_FRAME_CHANGED
-                cli
-                movw r17:r16, CURRENT_FRAME_H:CURRENT_FRAME_L
-                movw CURRENT_FRAME_H:CURRENT_FRAME_L, NEXT_FRAME_H:NEXT_FRAME_L
-                movw NEXT_FRAME_H:NEXT_FRAME_L, r17:r16
-                sei
-
-                sbis FLAGS, FLAG_BRIGHT_CHANGED
-                rjmp PC + 6
-                cbi FLAGS, FLAG_BRIGHT_CHANGED
-                lds r16, CMD_SET_BRIGHT_DATA
-                andi r16, (1 << D01_LED_COLOR_BITS) - 1
-                movw CURRENT_BRIGHT, r16
-
-                mov r16, CURRENT_BRIGHT
+FRAME_STEP:     mov r16, CURRENT_BRIGHT
 
                 mov r17, CURRENT_STAGE
                 swap r17
@@ -584,6 +565,26 @@ FRAME_STEP:     sbis FLAGS, FLAG_FRAME_CHANGED
                 ret
 
                 clr CURRENT_LEVEL
+
+                ldi r16, 1 << D01_CMD_GET_INT_FLAG_NEW_FRAME_RDY
+                rcall SET_EXT_INT
+
+                sbis FLAGS, FLAG_FRAME_CHANGED
+                rjmp PC + 7
+                cbi FLAGS, FLAG_FRAME_CHANGED
+                cli
+                movw r17:r16, CURRENT_FRAME_H:CURRENT_FRAME_L
+                movw CURRENT_FRAME_H:CURRENT_FRAME_L, NEXT_FRAME_H:NEXT_FRAME_L
+                movw NEXT_FRAME_H:NEXT_FRAME_L, r17:r16
+                sei
+
+                sbis FLAGS, FLAG_BRIGHT_CHANGED
+                rjmp PC + 6
+                cbi FLAGS, FLAG_BRIGHT_CHANGED
+                lds r16, CMD_SET_BRIGHT_DATA
+                andi r16, (1 << D01_LED_COLOR_BITS) - 1
+                movw CURRENT_BRIGHT, r16
+
                 ret
 
 //////////////////////////////////////////////////
