@@ -1,9 +1,10 @@
 ////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave)
-.equ D01_F_CPU          = 16000000
-.equ D01_CUBE_EDGE_SIZE = 8
-.equ D01_LED_COLORS     = 3 ; How many colors per LED
-.equ D01_LED_COLOR_BITS = 4 ; How many bits per color
-.equ D01_FRAME_SIZE     = ((D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE) * (D01_LED_COLORS * D01_LED_COLOR_BITS)) / 8
+.equ D01_F_CPU            = 16000000
+.equ D01_CUBE_EDGE_SIZE   = 8
+.equ D01_LED_COLORS       = 3 ; How many colors per LED
+.equ D01_LED_COLOR_BITS   = 4 ; How many bits per color
+.equ D01_FRAME_SIZE       = ((D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE) * (D01_LED_COLORS * D01_LED_COLOR_BITS)) / 8
+.equ D01_FRAME_RATE_APROX = 65 ; For exact calculation, see TIMER2 initialization
 
 .equ D01_CMD_GET_DEVID  = 0
 .equ D01_CMD_GET_INT    = 1

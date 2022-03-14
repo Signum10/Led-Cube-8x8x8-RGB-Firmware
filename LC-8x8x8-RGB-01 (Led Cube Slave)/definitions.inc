@@ -50,7 +50,7 @@
 .equ ICR1_INIT   = (F_CPU / 256) - 1
 .equ OCR1A_INIT  = (F_CPU / 256) / 8 - 1
 
-; TIMER1 used to control shift register latch and to basically control the cube refresh rate
+; TIMER2 used to control shift register latch and to basically control the cube refresh rate
 ; Cube Refresh Rate = F_CPU / ((1 << TIMER_BITS) * TIMER_PRESCALAR * CUBE_LEVELS * ((1 << COLOR_BITS) - 1)) = 16000000 / (256 * 8 * 8 * 15) = 65.1 Hz
 .equ TCCR2A_INIT = (1 << COM2B1) | (1 << COM2B0) | (1 << WGM21) | (1 << WGM20)
 .equ TCCR2B_INIT = (1 << CS21)

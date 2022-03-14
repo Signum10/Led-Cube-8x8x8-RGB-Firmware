@@ -55,6 +55,8 @@ MENU_01:
 .db 'm', "Shift Registers, manual load", 0 \ .dw menu_nav, MENU_01SM << 1
 .db 'a', "Shift Registers, auto load",   0 \ .dw menu_nav, MENU_01SA << 1
 .db 'l', "LEDs",                         0 \ .dw menu_nav, MENU_01L << 1
+.db 'c', "Cube, basic checks",           0 \ .dw menu_nav, MENU_01C << 1
+.db 'f', "Cube, frame",                  0 \ .dw menu_nav, MENU_01F << 1
 .db 'b', "Back",                         0 \ .dw menu_back, 0
 .dw 0
 .dw 0, 0
@@ -105,6 +107,25 @@ MENU_01L:
 .db 'b', "Back",                         0 \ .dw menu_back, 0
 .dw 0
 .dw prog_01l_init, 0
+
+MENU_01C:
+.db "Root/LC-8x8x8-RGB-01 (Led Cube Slave)/Cube, basic checks", 0
+.dw 0
+.dw prog_01c_init, 0
+
+MENU_01F:
+.db "Root/LC-8x8x8-RGB-01 (Led Cube Slave)/Cube, frame", 0
+.db 'a', "Red -= 1",        0 \ .dw prog_01f_r, -1
+.db 'q', "Red += 1",        0 \ .dw prog_01f_r, 1
+.db 's', "Green -= 1",      0 \ .dw prog_01f_g, -1
+.db 'w', "Green += 1",      0 \ .dw prog_01f_g, 1
+.db 'd', "Blue -= 1",       0 \ .dw prog_01f_b, -1
+.db 'e', "Blue += 1",       0 \ .dw prog_01f_b, 1
+.db 'f', "Brightness -= 1", 0 \ .dw prog_01f_br, -1
+.db 'r', "Brightness += 1", 0 \ .dw prog_01f_br, 1
+.db 'b', "Back",            0 \ .dw menu_back, 0
+.dw 0
+.dw prog_01f_init, 0
 
 ////////////////////////////////////////////////// Shared
 
@@ -1099,3 +1120,201 @@ prog_01l_col:   mov r18, r24
 
                 ldi r18, D01_TEST_SET_LEDS_COLOR_WHITE
                 ret
+
+////////////////////////////////////////////////// Root/LC-8x8x8-RGB-01 (Led Cube Slave)/Cube, basic checks
+
+PROG_01C_STEPS:
+.db "Verify DEVID",                                  0 \ .dw prog_01c_s0
+.db "Measure how many frames there are in 1 second", 0 \ .dw prog_01c_s1
+.dw 0
+
+PROG_01C_FRAME_STRING: .db " frames ", 0
+
+prog_01c_init:  rcall spi_master
+                ldi ZL, low(PROG_01C_STEPS << 1)
+                ldi ZH, high(PROG_01C_STEPS << 1)
+                rjmp step_prog
+
+prog_01c_s0:    ldi r16, D01_CMD_GET_DEVID
+                ldi r24, low(D01_CMD_GET_DEVID_DATA_SIZE)
+                ldi r25, high(D01_CMD_GET_DEVID_DATA_SIZE)
+                rcall tx_slave_get
+
+                lds r17, PACKET_BUFFER
+                rcall tx_8_bit_b16
+
+                cpi r17, D01_CMD_GET_DEVID_VALUE
+                breq PC + 2
+                rjmp step_fail
+                rjmp step_pass
+
+prog_01c_s1:    ldi r16, D01_CMD_GET_INT
+                ldi r24, low(D01_CMD_GET_INT_DATA_SIZE)
+                ldi r25, high(D01_CMD_GET_INT_DATA_SIZE)
+                rcall tx_slave_get
+
+                sbic PINREG, INT_PIN
+                rjmp PC - 1
+
+                sbis PINREG, INT_PIN
+                rjmp PC - 1
+
+                ldi r16, D01_CMD_GET_INT
+                ldi r24, low(D01_CMD_GET_INT_DATA_SIZE)
+                ldi r25, high(D01_CMD_GET_INT_DATA_SIZE)
+                rcall tx_slave_get
+
+                sbic PINREG, INT_PIN
+                rjmp PC - 1
+
+                ldi r16, high((F_CPU / 256) - 1)
+                out OCR1AH, r16
+                ldi r16, low((F_CPU / 256) - 1)
+                out OCR1AL, r16
+                ldi r16, (1 << WGM12) | (1 << CS12)
+                out TCCR1B, r16
+
+                ldi r17, 0
+
+prog_01c_s1_lp: in r16, TIFR
+                sbrc r16, OCF1A
+                rjmp prog_01c_s1_end
+
+                sbis PINREG, INT_PIN
+                rjmp prog_01c_s1_lp
+
+                ldi r16, D01_CMD_GET_INT
+                ldi r24, low(D01_CMD_GET_INT_DATA_SIZE)
+                ldi r25, high(D01_CMD_GET_INT_DATA_SIZE)
+                rcall tx_slave_get
+
+                sbic PINREG, INT_PIN
+                rjmp PC - 1
+
+                inc r17
+                rjmp prog_01c_s1_lp
+
+prog_01c_s1_end:ldi r16, 0
+                out TCCR1B, r16
+                out TCNT1H, r16
+                out TCNT1L, r16
+                out OCR1AH, r16
+                out OCR1AL, r16
+                ldi r16, (1 << OCF1A)
+                out TIFR, r16
+                ldi r16, (1 << PSR10)
+                out SFIOR, r16
+
+                rcall tx_8_bit_b16
+
+                cpi r17, D01_FRAME_RATE_APROX
+                breq PC + 2
+                rjmp step_fail
+                rjmp step_pass
+
+////////////////////////////////////////////////// Root/LC-8x8x8-RGB-01 (Led Cube Slave)/Cube, frame
+
+PROG_01F_STRING:
+.db "Red: 0x", 0, " Green: 0x", 0, " Blue: 0x", 0, " Brightness: 0x", 0
+
+prog_01f_init:  rcall spi_master
+
+                ldi r16, 0
+                sts PROGRAM_DATA + 0, r16
+                sts PROGRAM_DATA + 1, r16
+                sts PROGRAM_DATA + 2, r16
+                sts PROGRAM_DATA + 3, r16
+                rjmp prog_01f_upd
+
+.macro PROG_01F_MACRO
+                lds r18, PROGRAM_DATA + @0
+                add r18, r16
+                andi r18, 0x0F
+                sts PROGRAM_DATA + @0, r18
+                @1
+                rjmp prog_01f_upd
+.endmacro
+
+prog_01f_r:     PROG_01F_MACRO 0, set
+                
+prog_01f_g:     PROG_01F_MACRO 1, set
+
+prog_01f_b:     PROG_01F_MACRO 2, set
+
+prog_01f_br:    PROG_01F_MACRO 3, clt
+
+prog_01f_upd:   rcall tx_crlf
+                
+                ldi ZL, low(PROG_01F_STRING << 1)
+                ldi ZH, high(PROG_01F_STRING << 1)
+                rcall tx_string
+                movw X, Z
+
+                lds r17, PROGRAM_DATA + 0
+                rcall tx_8_bit_b16
+
+                movw Z, X
+                rcall tx_string
+                movw X, Z
+
+                lds r17, PROGRAM_DATA + 1
+                rcall tx_8_bit_b16
+
+                movw Z, X
+                rcall tx_string
+                movw X, Z
+
+                lds r17, PROGRAM_DATA + 2
+                rcall tx_8_bit_b16
+
+                movw Z, X
+                rcall tx_string
+                movw X, Z
+
+                lds r17, PROGRAM_DATA + 3
+                rcall tx_8_bit_b16
+
+                brts prog_01f_txf
+                rjmp prog_01f_txbr
+
+prog_01f_txf:   lds r16, PROGRAM_DATA + 0
+                lds r17, PROGRAM_DATA + 1
+                lds r18, PROGRAM_DATA + 2
+
+                mov r19, r18
+                swap r19
+                or r19, r17
+
+                mov r20, r16
+                swap r20
+                or r20, r18
+
+                mov r21, r17
+                swap r21
+                or r21, r16
+
+                ldi XL, low(PACKET_BUFFER)
+                ldi XH, high(PACKET_BUFFER)
+                ldi r24, low(D01_CMD_SET_FRAME_DATA_SIZE / 3)
+                ldi r25, high(D01_CMD_SET_FRAME_DATA_SIZE / 3)
+
+                st X+, r19
+                st X+, r20
+                st X+, r21
+                sbiw r25:r24, 1
+                brne PC - 4
+
+                ldi r16, D01_CMD_SET_FRAME
+                ldi r24, low(D01_CMD_SET_FRAME_DATA_SIZE)
+                ldi r25, high(D01_CMD_SET_FRAME_DATA_SIZE)
+                rcall tx_slave_set
+                rjmp menu_continue
+
+prog_01f_txbr:  lds r16, PROGRAM_DATA + 3
+                sts PACKET_BUFFER, r16
+
+                ldi r16, D01_CMD_SET_BRIGHT
+                ldi r24, low(D01_CMD_SET_BRIGHT_DATA_SIZE)
+                ldi r25, high(D01_CMD_SET_BRIGHT_DATA_SIZE)
+                rcall tx_slave_set
+                rjmp menu_continue
