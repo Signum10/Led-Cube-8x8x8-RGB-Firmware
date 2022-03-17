@@ -1140,8 +1140,14 @@ prog_01c_s0:    ldi r16, D01_CMD_GET_DEVID
                 ldi r25, high(D01_CMD_GET_DEVID_DATA_SIZE)
                 rcall tx_slave_get
 
+                ldi r16, '0'
+                rcall tx_byte
+                ldi r16, 'x'
+                rcall tx_byte
                 lds r17, PACKET_BUFFER
                 rcall tx_8_bit_b16
+                ldi r16, ' '
+                rcall tx_byte
 
                 cpi r17, D01_CMD_GET_DEVID_VALUE
                 breq PC + 2
@@ -1174,7 +1180,7 @@ prog_01c_s1:    ldi r16, D01_CMD_GET_INT
                 ldi r16, (1 << WGM12) | (1 << CS12)
                 out TCCR1B, r16
 
-                ldi r17, 0
+                ldi r20, 0
 
 prog_01c_s1_lp: in r16, TIFR
                 sbrc r16, OCF1A
@@ -1191,7 +1197,7 @@ prog_01c_s1_lp: in r16, TIFR
                 sbic PINREG, INT_PIN
                 rjmp PC - 1
 
-                inc r17
+                inc r20
                 rjmp prog_01c_s1_lp
 
 prog_01c_s1_end:ldi r16, 0
@@ -1205,9 +1211,14 @@ prog_01c_s1_end:ldi r16, 0
                 ldi r16, (1 << PSR10)
                 out SFIOR, r16
 
-                rcall tx_8_bit_b16
+                mov r17, r20
+                ldi r18, 0
+                ldi r19, 0
+                rcall tx_24_bit_b10
+                ldi r16, ' '
+                rcall tx_byte
 
-                cpi r17, D01_FRAME_RATE_APROX
+                cpi r20, D01_FRAME_RATE_APROX
                 breq PC + 2
                 rjmp step_fail
                 rjmp step_pass
@@ -1223,6 +1234,7 @@ prog_01f_init:  rcall spi_master
                 sts PROGRAM_DATA + 0, r16
                 sts PROGRAM_DATA + 1, r16
                 sts PROGRAM_DATA + 2, r16
+                ldi r16, D01_CMD_SET_BRIGHT_MAX
                 sts PROGRAM_DATA + 3, r16
                 rjmp prog_01f_upd
 

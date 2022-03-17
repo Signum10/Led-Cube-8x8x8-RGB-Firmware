@@ -86,9 +86,10 @@ start:          ldi r16, PORTB_INIT
                 ldi r16, D01_CMD_GET_DEVID_VALUE
                 sts CMD_GET_DEVID_DATA, r16
 
-                rcall INIT_NORMAL_MD
+                ldi r16, 0
+                sts CMD_GET_INT_DATA, r16
 
-                rcall CLR_EXT_INT
+                rcall INIT_NORMAL_MD
                 
                 ldi r16, 1 << D01_CMD_GET_INT_FLAG_RESET
                 rcall SET_EXT_INT
@@ -363,7 +364,6 @@ SET_EXT_INT:    cli
 //////////////////////////////////////////////////
 
 INIT_NORMAL_MD: cli
-
                 ldi r16, low(CMD_SET_FRAME_DATA)
                 ldi r17, high(CMD_SET_FRAME_DATA)
                 movw CURRENT_FRAME_H:CURRENT_FRAME_L, r17:r16
@@ -371,6 +371,7 @@ INIT_NORMAL_MD: cli
                 ldi r16, low(CMD_SET_FRAME_DATA + D01_FRAME_SIZE)
                 ldi r17, high(CMD_SET_FRAME_DATA + D01_FRAME_SIZE)
                 movw NEXT_FRAME_H:NEXT_FRAME_L, r17:r16
+                sei
 
                 movw Y, CURRENT_FRAME_H:CURRENT_FRAME_L
                 ldi r16, 0
@@ -408,12 +409,7 @@ INIT_NORMAL_MD: cli
                 dec r17
                 brne PC - 7
 
-                .if COMMON_K == 1
-                ldi r16, 0x00
-                .else
-                ldi r16, 0xFF
-                .endif
-
+                com r16
                 ldi r17, D01_CUBE_EDGE_SIZE / 8
 
                 lds r15, UCSR0A
@@ -436,16 +432,15 @@ INIT_NORMAL_MD: cli
 
                 cbi ENABLE_PORT, ENABLE_PIN ; must be carefull what you load in SR because of this
 
-                ldi r16, TCCR2A_INIT
-                sts TCCR2A, r16
-                ldi r16, TCCR2B_INIT
-                sts TCCR2B, r16
-
                 cbi FLAGS, FLAG_TEST_STATE
                 cbi FLAGS, FLAG_FRAME_CHANGED
                 cbi FLAGS, FLAG_BRIGHT_CHANGED
                 cbi FLAGS, FLAG_FRAME_STEP_TRIG
-                sei
+
+                ldi r16, TCCR2A_INIT
+                sts TCCR2A, r16
+                ldi r16, TCCR2B_INIT
+                sts TCCR2B, r16
                 ret
 
 //////////////////////////////////////////////////
@@ -465,6 +460,7 @@ INIT_TEST_MD:   cli
                 
                 sbi FLAGS, FLAG_TEST_STATE
                 cbi FLAGS, FLAG_FRAME_STEP_TRIG
+
                 sei
                 ret
 
@@ -488,8 +484,8 @@ FRAME_STEP:     inc CURRENT_STAGE
                 sbis FLAGS, FLAG_FRAME_CHANGED
                 rjmp PC + 7
                 cbi FLAGS, FLAG_FRAME_CHANGED
-                cli
                 movw r17:r16, CURRENT_FRAME_H:CURRENT_FRAME_L
+                cli
                 movw CURRENT_FRAME_H:CURRENT_FRAME_L, NEXT_FRAME_H:NEXT_FRAME_L
                 movw NEXT_FRAME_H:NEXT_FRAME_L, r17:r16
                 sei
@@ -534,12 +530,13 @@ FRAME_STEP_EXEC:mov r16, CURRENT_BRIGHT
                 MAC_PROCESS_BYTE
                 MAC_PROCESS_BYTE
 
-                nop
                 .if COMMON_K == 1
                 com r19
                 .else
                 nop
                 .endif
+                nop
+                nop
                 sts UDR0, r19
                 .endmacro
 
@@ -581,6 +578,10 @@ FRAME_STEP_EXEC:mov r16, CURRENT_BRIGHT
                 .if COMMON_K == 0
                 com r19
                 .endif
+
+                lds r16, UCSR0A
+                sbrs r16, UDRE0
+                rjmp PC - 3
 
                 sts UDR0, r19
                 ret
