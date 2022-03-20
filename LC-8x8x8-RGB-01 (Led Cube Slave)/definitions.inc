@@ -19,8 +19,8 @@
 ; GPIOR used for flags
 .equ FLAGS                = GPIOR0
 .equ FLAG_TEST_STATE      = 0
-.equ FLAG_TEST_STATE_REQ  = 1
-.equ FLAG_MODE_CHECK      = 2
+.equ FLAG_TEST_COMMAND    = 1
+.equ FLAG_MODE_CHANGED    = 2
 .equ FLAG_FRAME_CHANGED   = 3
 .equ FLAG_BRIGHT_CHANGED  = 4
 
@@ -33,7 +33,7 @@
 .equ DDRD_INIT  = (1 << LATCH_PIN) | (1 << SHIFT_PIN) | (1 << ENABLE_PIN)
 
 ; SPI used to communicate with master
-.equ SPCR_INIT = (1 << SPIE) | (1 << SPE) | (1 << CPHA)
+.equ SPCR_INIT = (1 << SPIE) | (1 << SPE) | (1 << CPHA) ; As a note, maximum possible SPI frequncy for this slave is 1 MHz, code cannot keep up at more then that
 
 ; INT0 used for interrupt when SPI Slave is selected
 .equ EICRA_INIT = (1 << ISC01)
@@ -77,6 +77,9 @@
 .equ SPI_STATE_WRITE    = 1
 .equ SPI_STATE_READ     = 2
 .equ SPI_STATE_END      = 3
+
+.equ STAGE_MAX          = (1 << D01_LED_COLOR_BITS) - 1 ; a color with value 0 will not be displayed so this can be one less then number of colors
+.equ LEVEL_MAX          = D01_CUBE_EDGE_SIZE
 
 .dseg
 CMD_GET_DEVID_DATA:  .byte D01_CMD_GET_DEVID_DATA_SIZE

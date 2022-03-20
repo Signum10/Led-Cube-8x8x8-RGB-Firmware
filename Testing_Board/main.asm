@@ -56,7 +56,7 @@ MENU_01:
 .db 'a', "Shift Registers, auto load",   0 \ .dw menu_nav, MENU_01SA << 1
 .db 'l', "LEDs",                         0 \ .dw menu_nav, MENU_01L << 1
 .db 'c', "Cube, basic checks",           0 \ .dw menu_nav, MENU_01C << 1
-.db 'f', "Cube, frame",                  0 \ .dw menu_nav, MENU_01F << 1
+.db 'f', "Cube, one color frame",        0 \ .dw menu_nav, MENU_01F << 1
 .db 'b', "Back",                         0 \ .dw menu_back, 0
 .dw 0
 .dw 0, 0
@@ -114,7 +114,7 @@ MENU_01C:
 .dw prog_01c_init, 0
 
 MENU_01F:
-.db "Root/LC-8x8x8-RGB-01 (Led Cube Slave)/Cube, frame", 0
+.db "Root/LC-8x8x8-RGB-01 (Led Cube Slave)/Cube, one color frame", 0
 .db 'a', "Red -= 1",        0 \ .dw prog_01f_r, -1
 .db 'q', "Red += 1",        0 \ .dw prog_01f_r, 1
 .db 's', "Green -= 1",      0 \ .dw prog_01f_g, -1
@@ -466,6 +466,8 @@ spi_master:     ldi r18, MASTER_PORT_INIT
                 out PORT, r18
                 ldi r18, MASTER_DDR_INIT
                 out DDR, r18
+                ldi r18, MASTER_SPSR_INIT
+                out SPSR, r18
                 ldi r18, MASTER_SPCR_INIT
                 out SPCR, r18
                 ret
@@ -611,6 +613,10 @@ prog_01i_s4:    ldi r16, D01_TEST_SET_INT
                 ldi r24, low(D01_TEST_SET_INT_DATA_SIZE)
                 ldi r25, high(D01_TEST_SET_INT_DATA_SIZE)
                 rcall tx_slave_set
+
+                ldi r16, 0
+                dec r16
+                brne PC - 1
 
                 sbis PINREG, INT_PIN
                 rjmp step_fail
@@ -809,7 +815,7 @@ prog_01sa_s0_4: ldi r16, D01_TEST_SET_SR_MODE_AUTO
                 rcall tx_slave_set
 
 prog_01sa_tx_lp:sbis PINREG, INT_PIN
-                rjmp prog_01sm_tx_lp
+                rjmp prog_01sa_tx_lp
                 
                 ldi r16, D01_CMD_GET_INT
                 ldi r24, low(D01_CMD_GET_INT_DATA_SIZE)
@@ -1184,7 +1190,7 @@ prog_01c_s1_lp: in r16, TIFR
                 rcall tx_slave_get
 
                 lds r16, PACKET_BUFFER
-                andi r16, 1 << D01_CMD_GET_INT_FLAG_TEST_RDY
+                andi r16, 1 << D01_CMD_GET_INT_FLAG_NEW_FRAME_RDY
                 breq prog_01c_s1_lp
                 
                 inc r20
@@ -1213,7 +1219,7 @@ prog_01c_s1_end:ldi r16, 0
                 rjmp step_fail
                 rjmp step_pass
 
-////////////////////////////////////////////////// Root/LC-8x8x8-RGB-01 (Led Cube Slave)/Cube, frame
+////////////////////////////////////////////////// Root/LC-8x8x8-RGB-01 (Led Cube Slave)/Cube, one color frame
 
 PROG_01F_STRING:
 .db "Red: 0x", 0, " Green: 0x", 0, " Blue: 0x", 0, " Brightness: 0x", 0

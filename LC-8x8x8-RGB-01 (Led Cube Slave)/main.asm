@@ -90,36 +90,25 @@ start:          ldi r16, PORTB_INIT
                 ldi r16, 1 << D01_CMD_GET_INT_FLAG_RESET
                 sts CMD_GET_INT_DATA, r16
                 sbi INT_PORT, INT_PIN
+                sei
 
-loop:           sei
-                sbis FLAGS, FLAG_MODE_CHECK
-                rjmp PC - 1
-
+loop:           sbis FLAGS, FLAG_MODE_CHANGED
+                rjmp loop_cont
                 cli
-                cbi FLAGS, FLAG_MODE_CHECK
+                cbi FLAGS, FLAG_MODE_CHANGED
 
-                ldi r16, 0
-                sbic FLAGS, FLAG_TEST_STATE
-                ldi r16, 1
-
-                ldi r17, 0
-                sbic FLAGS, FLAG_TEST_STATE_REQ
-                ldi r17, 1
-
-                eor r16, r17
-                brne PC + 4
-                cpi r17, 0
-                brne loop_cont
-                rjmp loop
-
-                cpi r17, 0
-                brne PC + 3
+                sbis FLAGS, FLAG_TEST_STATE
+                rjmp PC + 4
                 rcall NORMAL_MODE
+                sei
                 rjmp loop
 
                 rcall TEST_MODE
+                sei
 
-loop_cont:      sei
+loop_cont:      sbis FLAGS, FLAG_TEST_COMMAND
+                rjmp loop
+                cbi FLAGS, FLAG_TEST_COMMAND
 
                 cpi SPI_OPCODE_REGISTER, D01_TEST_SET_SR
                 brne PC + 3
@@ -149,10 +138,64 @@ NORMAL_MODE:    ldi r16, low(CMD_SET_FRAME_DATA)
                 cpc YH, NEXT_FRAME_H
                 brne PC - 3
 
+                ;;;
+                movw Y, CURRENT_FRAME_H:CURRENT_FRAME_L
+                ldi r24, 0
+                ldi r25, 0
+
+                lll:
+                ;RRR|GGGBBB00
+                mov r16, r25
+                lsl r16 ; r
+
+                mov r17, r24
+                andi r17, 0b11100000 ; g
+                swap r17
+
+                mov r18, r24
+                lsr r18
+                andi r18, 0b00001110 ; b
+
+                mov r13, r18
+                swap r13
+                or r13, r17
+
+                mov r14, r16
+                swap r14
+
+                adiw r25:r24, 4
+                
+                mov r16, r25
+                lsl r16 ; r
+
+                mov r17, r24
+                andi r17, 0b11100000 ; g
+                swap r17
+
+                mov r18, r24
+                lsr r18
+                andi r18, 0b00001110 ; b
+
+                or r14, r18
+
+                mov r15, r17
+                swap r15
+                or r15, r16
+
+                adiw r25:r24, 4
+
+                st Y+, r13
+                st Y+, r14
+                st Y+, r15
+                cp YL, NEXT_FRAME_L
+                cpc YH, NEXT_FRAME_H
+                brne lll
+                ;;;
+
                 ldi r16, D01_CMD_SET_BRIGHT_MAX
                 mov CURRENT_BRIGHT, r16
-                ldi CURRENT_STAGE, (1 << D01_LED_COLOR_BITS) - 2
-                ldi CURRENT_LEVEL, D01_CUBE_EDGE_SIZE - 1
+                ldi CURRENT_STAGE, STAGE_MAX - 1
+                ldi CURRENT_LEVEL, LEVEL_MAX - 1
 
                 ldi r16, 1 << TXC0
                 sts UCSR0A, r16
@@ -194,9 +237,10 @@ NORMAL_MODE:    ldi r16, low(CMD_SET_FRAME_DATA)
                 brne PC - 1
                 cbi LATCH_PORT, LATCH_PIN
 
-                cbi ENABLE_PORT, ENABLE_PIN ; must be carefull what you load in SR because of this
+                cbi ENABLE_PORT, ENABLE_PIN
 
                 cbi FLAGS, FLAG_TEST_STATE
+                cbi FLAGS, FLAG_TEST_COMMAND
                 
                 ldi r16, TCCR2A_INIT
                 sts TCCR2A, r16
@@ -243,8 +287,8 @@ STATE_WRITE:    cpi SPI_STATE_REGISTER, SPI_STATE_WRITE
 
                 cpi SPI_OPCODE_REGISTER, D01_CMD_SET_FRAME
                 brne PC + 7
-                cbi FLAGS, FLAG_TEST_STATE_REQ
-                sbi FLAGS, FLAG_MODE_CHECK
+                sbic FLAGS, FLAG_TEST_STATE
+                sbi FLAGS, FLAG_MODE_CHANGED
                 sbi FLAGS, FLAG_FRAME_CHANGED
                 ldi SPI_STATE_REGISTER, SPI_STATE_END
                 out SREG, SPI_SREG_SAVE
@@ -252,15 +296,21 @@ STATE_WRITE:    cpi SPI_STATE_REGISTER, SPI_STATE_WRITE
 
                 cpi SPI_OPCODE_REGISTER, D01_CMD_SET_BRIGHT
                 brne PC + 7
-                cbi FLAGS, FLAG_TEST_STATE_REQ
-                sbi FLAGS, FLAG_MODE_CHECK
+                sbic FLAGS, FLAG_TEST_STATE
+                sbi FLAGS, FLAG_MODE_CHANGED
                 sbi FLAGS, FLAG_BRIGHT_CHANGED
                 ldi SPI_STATE_REGISTER, SPI_STATE_END
                 out SREG, SPI_SREG_SAVE
                 reti
 
-                sbi FLAGS, FLAG_TEST_STATE_REQ
-                sbi FLAGS, FLAG_MODE_CHECK
+                cpi SPI_OPCODE_REGISTER, D01_TEST_SET_SR
+                breq PC + 3
+                cpi SPI_OPCODE_REGISTER, D01_TEST_SET_LEDS
+                brne PC + 4
+                sbis FLAGS, FLAG_TEST_STATE
+                sbi FLAGS, FLAG_MODE_CHANGED
+                sbi FLAGS, FLAG_TEST_COMMAND
+
                 ldi SPI_STATE_REGISTER, SPI_STATE_END
                 out SREG, SPI_SREG_SAVE
                 reti
@@ -441,12 +491,12 @@ INVALID_OPCODE: ldi SPI_STATE_REGISTER, SPI_STATE_END
 //////////////////////////////////////////////////
 
 INT_LATCH:      inc CURRENT_STAGE
-                cpi CURRENT_STAGE, (1 << D01_LED_COLOR_BITS) - 1
+                cpi CURRENT_STAGE, STAGE_MAX
                 brlo INT_LATCH_CONT
                 clr CURRENT_STAGE
 
                 inc CURRENT_LEVEL
-                cpi CURRENT_LEVEL, D01_CUBE_EDGE_SIZE
+                cpi CURRENT_LEVEL, LEVEL_MAX
                 brlo INT_LATCH_CONT
                 clr CURRENT_LEVEL
 
@@ -626,7 +676,7 @@ set_sr_loop0a:  lds r15, UCSR0A
                 brne PC - 1
                 cbi LATCH_PORT, LATCH_PIN
 
-                cbi ENABLE_PORT, ENABLE_PIN ; must be carefull what you load in SR because of this
+                cbi ENABLE_PORT, ENABLE_PIN ; must be careful what you load in SR because of this
                 ret         
 
 TEST_SET_SR_AUT:sbi ENABLE_PORT, ENABLE_PIN

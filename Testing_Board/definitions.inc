@@ -17,7 +17,8 @@
 .equ UCSRB_INIT = (1 << RXEN) | (1 << TXEN)
 .equ UBRR_INIT  = (F_CPU / (16 * BAUD)) - 1
 
-.equ MASTER_SPCR_INIT = (1 << SPE) | (1 << MSTR) | (1 << CPHA)
+.equ MASTER_SPCR_INIT = (1 << SPE) | (1 << MSTR) | (1 << CPHA) | (1 << SPR0)
+.equ MASTER_SPSR_INIT = (1 << SPI2X)
 .equ MASTER_DDR_INIT  = (1 << MOSI_PIN) | (1 << SCK_PIN) | (1 << SS_PIN)
 .equ MASTER_PORT_INIT = (1 << SS_PIN)
 
