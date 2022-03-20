@@ -489,6 +489,9 @@ spi_close:      ldi r18, CLOSE_SPCR_INIT
 tx_slave_set:   cbi PORT, SS_PIN
                 rcall txrx_spi
 
+                sbiw r25:r24, 0
+                breq PC + 7
+
                 ldi XL, low(PACKET_BUFFER)
                 ldi XH, high(PACKET_BUFFER)
 
@@ -538,8 +541,8 @@ PROG_01I_STEPS:
 .db "TX & RX big packet @ 500 kHz", 0 \ .dw prog_01i_s1
 .db "TX & RX big packet @ 1 MHz",   0 \ .dw prog_01i_s2
 .db "TX & RX big packet @ 2 MHz",   0 \ .dw prog_01i_s3
-.db "Check INT pin toggle, pass 1", 0 \ .dw prog_01i_s4
-.db "Check INT pin toggle, pass 2", 0 \ .dw prog_01i_s4
+.db "Check INT, pass 1",            0 \ .dw prog_01i_s4
+.db "Check INT, pass 2",            0 \ .dw prog_01i_s4
 .dw 0
 
 prog_01i_init:  rcall spi_master
@@ -604,32 +607,25 @@ prog_01i_s0_3:  ldi XL, low(PACKET_BUFFER)
 
                 rjmp step_pass
 
-prog_01i_s4:    ldi r16, 1
-                sts PACKET_BUFFER + D01_TEST_SET_INT_STATE_OFFSET, r16
-                ldi r16, D01_TEST_SET_INT
+prog_01i_s4:    ldi r16, D01_TEST_SET_INT
                 ldi r24, low(D01_TEST_SET_INT_DATA_SIZE)
                 ldi r25, high(D01_TEST_SET_INT_DATA_SIZE)
                 rcall tx_slave_set
-
-                ldi r16, 0
-                dec r16
-                brne PC - 1
 
                 sbis PINREG, INT_PIN
                 rjmp step_fail
 
-                ldi r16, 0
-                sts PACKET_BUFFER + D01_TEST_SET_INT_STATE_OFFSET, r16
-                ldi r16, D01_TEST_SET_INT
-                ldi r24, low(D01_TEST_SET_INT_DATA_SIZE)
-                ldi r25, high(D01_TEST_SET_INT_DATA_SIZE)
-                rcall tx_slave_set
-
-                ldi r16, 0
-                dec r16
-                brne PC - 1
+                ldi r16, D01_CMD_GET_INT
+                ldi r24, low(D01_CMD_GET_INT_DATA_SIZE)
+                ldi r25, high(D01_CMD_GET_INT_DATA_SIZE)
+                rcall tx_slave_get
 
                 sbic PINREG, INT_PIN
+                rjmp step_fail
+
+                lds r16, PACKET_BUFFER
+                andi r16, 1 << D01_CMD_GET_INT_FLAG_TEST_RDY
+                brne PC + 2
                 rjmp step_fail
 
                 rjmp step_pass
@@ -740,13 +736,18 @@ prog_01sm_tx:   ldi r16, D01_TEST_SET_SR_MODE_MANUAL
                 ldi r25, high(D01_TEST_SET_SR_DATA_SIZE)
                 rcall tx_slave_set
 
-                ldi r16, 0
-                dec r16
-                brne PC - 1
+prog_01sm_tx_lp:sbis PINREG, INT_PIN
+                rjmp prog_01sm_tx_lp
+                
+                ldi r16, D01_CMD_GET_INT
+                ldi r24, low(D01_CMD_GET_INT_DATA_SIZE)
+                ldi r25, high(D01_CMD_GET_INT_DATA_SIZE)
+                rcall tx_slave_get
 
-                sbic PINREG, INT_PIN
-                rjmp PC - 1
-
+                lds r16, PACKET_BUFFER
+                andi r16, 1 << D01_CMD_GET_INT_FLAG_TEST_RDY
+                breq prog_01sm_tx_lp
+                
                 rcall tx_crlf
 
                 ldi ZL, low(PROG_01SM_STRING_SENT << 1)
@@ -807,15 +808,17 @@ prog_01sa_s0_4: ldi r16, D01_TEST_SET_SR_MODE_AUTO
                 ldi r25, high(D01_TEST_SET_SR_DATA_SIZE)
                 rcall tx_slave_set
 
-                ldi r16, 0
-                dec r16
-                brne PC - 1
+prog_01sa_tx_lp:sbis PINREG, INT_PIN
+                rjmp prog_01sm_tx_lp
+                
+                ldi r16, D01_CMD_GET_INT
+                ldi r24, low(D01_CMD_GET_INT_DATA_SIZE)
+                ldi r25, high(D01_CMD_GET_INT_DATA_SIZE)
+                rcall tx_slave_get
 
-                sbis PINREG, INT_PIN
-                rjmp step_fail
-
-                sbic PINREG, INT_PIN
-                rjmp PC - 1
+                lds r16, PACKET_BUFFER
+                andi r16, 1 << D01_CMD_GET_INT_FLAG_TEST_RDY
+                breq prog_01sa_tx_lp
 
                 ldi r16, D01_TEST_GET_SR
                 ldi r24, low(D01_TEST_GET_SR_DATA_SIZE)
@@ -1159,20 +1162,6 @@ prog_01c_s1:    ldi r16, D01_CMD_GET_INT
                 ldi r25, high(D01_CMD_GET_INT_DATA_SIZE)
                 rcall tx_slave_get
 
-                sbic PINREG, INT_PIN
-                rjmp PC - 1
-
-                sbis PINREG, INT_PIN
-                rjmp PC - 1
-
-                ldi r16, D01_CMD_GET_INT
-                ldi r24, low(D01_CMD_GET_INT_DATA_SIZE)
-                ldi r25, high(D01_CMD_GET_INT_DATA_SIZE)
-                rcall tx_slave_get
-
-                sbic PINREG, INT_PIN
-                rjmp PC - 1
-
                 ldi r16, high((F_CPU / 256) - 1)
                 out OCR1AH, r16
                 ldi r16, low((F_CPU / 256) - 1)
@@ -1188,15 +1177,16 @@ prog_01c_s1_lp: in r16, TIFR
 
                 sbis PINREG, INT_PIN
                 rjmp prog_01c_s1_lp
-
+                
                 ldi r16, D01_CMD_GET_INT
                 ldi r24, low(D01_CMD_GET_INT_DATA_SIZE)
                 ldi r25, high(D01_CMD_GET_INT_DATA_SIZE)
                 rcall tx_slave_get
 
-                sbic PINREG, INT_PIN
-                rjmp PC - 1
-
+                lds r16, PACKET_BUFFER
+                andi r16, 1 << D01_CMD_GET_INT_FLAG_TEST_RDY
+                breq prog_01c_s1_lp
+                
                 inc r20
                 rjmp prog_01c_s1_lp
 
