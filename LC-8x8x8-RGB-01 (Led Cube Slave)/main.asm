@@ -82,6 +82,14 @@ start:          ldi r16, PORTB_INIT
 
                 ldi SPI_STATE_REGISTER, SPI_STATE_END
 
+                ldi r16, low(CMD_SET_FRAME_DATA)
+                ldi r17, high(CMD_SET_FRAME_DATA)
+                movw CURRENT_FRAME_H:CURRENT_FRAME_L, r17:r16
+
+                ldi r16, low(CMD_SET_FRAME_DATA + D01_FRAME_SIZE)
+                ldi r17, high(CMD_SET_FRAME_DATA + D01_FRAME_SIZE)
+                movw NEXT_FRAME_H:NEXT_FRAME_L, r17:r16
+
                 ldi r16, D01_CMD_GET_DEVID_VALUE
                 sts CMD_GET_DEVID_DATA, r16
 
@@ -122,75 +130,14 @@ loop_cont:      sbis FLAGS, FLAG_TEST_COMMAND
 
 //////////////////////////////////////////////////
 
-NORMAL_MODE:    ldi r16, low(CMD_SET_FRAME_DATA)
-                ldi r17, high(CMD_SET_FRAME_DATA)
-                movw CURRENT_FRAME_H:CURRENT_FRAME_L, r17:r16
-
-                ldi r16, low(CMD_SET_FRAME_DATA + D01_FRAME_SIZE)
-                ldi r17, high(CMD_SET_FRAME_DATA + D01_FRAME_SIZE)
-                movw NEXT_FRAME_H:NEXT_FRAME_L, r17:r16
-                
-                movw Y, CURRENT_FRAME_H:CURRENT_FRAME_L
+NORMAL_MODE:    movw Y, CURRENT_FRAME_H:CURRENT_FRAME_L
+                ldi ZL, low(D01_FRAME_SIZE)
+                ldi ZH, high(D01_FRAME_SIZE)
                 ldi r16, 0
 
                 st Y+, r16
-                cp YL, NEXT_FRAME_L
-                cpc YH, NEXT_FRAME_H
-                brne PC - 3
-
-                ;;;
-                movw Y, CURRENT_FRAME_H:CURRENT_FRAME_L
-                ldi r24, 0
-                ldi r25, 0
-
-                lll:
-                ;RRR|GGGBBB00
-                mov r16, r25
-                lsl r16 ; r
-
-                mov r17, r24
-                andi r17, 0b11100000 ; g
-                swap r17
-
-                mov r18, r24
-                lsr r18
-                andi r18, 0b00001110 ; b
-
-                mov r13, r18
-                swap r13
-                or r13, r17
-
-                mov r14, r16
-                swap r14
-
-                adiw r25:r24, 4
-                
-                mov r16, r25
-                lsl r16 ; r
-
-                mov r17, r24
-                andi r17, 0b11100000 ; g
-                swap r17
-
-                mov r18, r24
-                lsr r18
-                andi r18, 0b00001110 ; b
-
-                or r14, r18
-
-                mov r15, r17
-                swap r15
-                or r15, r16
-
-                adiw r25:r24, 4
-
-                st Y+, r13
-                st Y+, r14
-                st Y+, r15
-                cp YL, NEXT_FRAME_L
-                cpc YH, NEXT_FRAME_H
-                brne lll
-                ;;;
+                sbiw Z, 1
+                brne PC - 2
 
                 ldi r16, D01_CMD_SET_BRIGHT_MAX
                 mov CURRENT_BRIGHT, r16

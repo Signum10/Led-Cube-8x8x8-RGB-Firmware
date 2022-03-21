@@ -630,8 +630,7 @@ prog_01i_s4:    ldi r16, D01_TEST_SET_INT
                 rjmp step_fail
 
                 lds r16, PACKET_BUFFER
-                andi r16, 1 << D01_CMD_GET_INT_FLAG_TEST_RDY
-                brne PC + 2
+                sbrs r16, D01_CMD_GET_INT_FLAG_TEST_RDY
                 rjmp step_fail
 
                 rjmp step_pass
@@ -751,8 +750,8 @@ prog_01sm_tx_lp:sbis PINREG, INT_PIN
                 rcall tx_slave_get
 
                 lds r16, PACKET_BUFFER
-                andi r16, 1 << D01_CMD_GET_INT_FLAG_TEST_RDY
-                breq prog_01sm_tx_lp
+                sbrs r16, D01_CMD_GET_INT_FLAG_TEST_RDY
+                rjmp prog_01sm_tx_lp
                 
                 rcall tx_crlf
 
@@ -823,8 +822,8 @@ prog_01sa_tx_lp:sbis PINREG, INT_PIN
                 rcall tx_slave_get
 
                 lds r16, PACKET_BUFFER
-                andi r16, 1 << D01_CMD_GET_INT_FLAG_TEST_RDY
-                breq prog_01sa_tx_lp
+                sbrs r16, D01_CMD_GET_INT_FLAG_TEST_RDY
+                rjmp prog_01sa_tx_lp
 
                 ldi r16, D01_TEST_GET_SR
                 ldi r24, low(D01_TEST_GET_SR_DATA_SIZE)
@@ -1133,8 +1132,10 @@ prog_01l_col:   mov r18, r24
 ////////////////////////////////////////////////// Root/LC-8x8x8-RGB-01 (Led Cube Slave)/Cube, basic checks
 
 PROG_01C_STEPS:
-.db "Verify DEVID",                                  0 \ .dw prog_01c_s0
-.db "Measure how many frames there are in 1 second", 0 \ .dw prog_01c_s1
+.db "Read DEVID",                                    0 \ .dw prog_01c_s0
+.db "Run Counter Animation (about 1 minute)",        0 \ .dw prog_01c_s1
+.db "Run Strobe Animation for 10 seconds",           0 \ .dw prog_01c_s2
+.db "Measure how many frames there are in 1 second", 0 \ .dw prog_01c_s3
 .dw 0
 
 PROG_01C_FRAME_STRING: .db " frames ", 0
@@ -1163,7 +1164,147 @@ prog_01c_s0:    ldi r16, D01_CMD_GET_DEVID
                 rjmp step_fail
                 rjmp step_pass
 
-prog_01c_s1:    ldi r16, D01_CMD_GET_INT
+prog_01c_s1:    ldi r16, D01_CMD_SET_BRIGHT_MAX
+                sts PACKET_BUFFER, r16
+
+                ldi r16, D01_CMD_SET_BRIGHT
+                ldi r24, low(D01_CMD_SET_BRIGHT_DATA_SIZE)
+                ldi r25, high(D01_CMD_SET_BRIGHT_DATA_SIZE)
+                rcall tx_slave_set
+
+                ldi r24, 0
+                ldi r25, 0
+                
+prog_01c_s1_lp1:movw Y, r25:r24
+                ldi XL, low(PACKET_BUFFER)
+                ldi XH, high(PACKET_BUFFER)
+                ldi ZL, low(D01_CMD_SET_FRAME_DATA_SIZE / 3)
+                ldi ZH, high(D01_CMD_SET_FRAME_DATA_SIZE / 3)
+
+prog_01c_s1_lp2:mov r16, YH
+                andi r16, 0x0F ; r16 = Red
+                mov r17, YL
+                swap r17
+                andi r17, 0x0F ; r17 = Green
+                mov r18, YL
+                andi r18, 0x0F ; r18 = Blue
+
+                mov r13, r18
+                swap r13
+                or r13, r17
+
+                mov r14, r16
+                swap r14
+
+                adiw Y, 1
+
+                mov r16, YH
+                andi r16, 0x0F ; r16 = Red
+                mov r17, YL
+                swap r17
+                andi r17, 0x0F ; r17 = Green
+                mov r18, YL
+                andi r18, 0x0F ; r18 = Blue
+
+                or r14, r18
+
+                mov r15, r17
+                swap r15
+                or r15, r16
+
+                adiw Y, 1
+
+                st X+, r13
+                st X+, r14
+                st X+, r15
+
+                sbiw Z, 1
+                brne prog_01c_s1_lp2
+
+                push r24
+                push r25
+                lds r20, PACKET_BUFFER
+
+prog_01c_s1_lp3:sbis PINREG, INT_PIN
+                rjmp prog_01c_s1_lp3
+
+                ldi r16, D01_CMD_GET_INT
+                ldi r24, low(D01_CMD_GET_INT_DATA_SIZE)
+                ldi r25, high(D01_CMD_GET_INT_DATA_SIZE)
+                rcall tx_slave_get
+
+                lds r16, PACKET_BUFFER
+                sbrs r16, D01_CMD_GET_INT_FLAG_NEW_FRAME_RDY
+                rjmp prog_01c_s1_lp3
+
+                sts PACKET_BUFFER, r20
+
+                ldi r16, D01_CMD_SET_FRAME
+                ldi r24, low(D01_CMD_SET_FRAME_DATA_SIZE)
+                ldi r25, high(D01_CMD_SET_FRAME_DATA_SIZE)
+                rcall tx_slave_set
+
+                pop r25
+                pop r24
+
+                adiw r25:r24, 1
+                cpi r25, 0x10
+                brsh PC + 2
+                rjmp prog_01c_s1_lp1
+
+                rjmp step_pass
+
+prog_01c_s2:    ldi r16, D01_CMD_SET_BRIGHT_MAX
+                sts PACKET_BUFFER, r16
+
+                ldi r16, D01_CMD_SET_BRIGHT
+                ldi r24, low(D01_CMD_SET_BRIGHT_DATA_SIZE)
+                ldi r25, high(D01_CMD_SET_BRIGHT_DATA_SIZE)
+                rcall tx_slave_set
+
+                ldi YL, low(D01_FRAME_RATE_APROX * 10)
+                ldi YH, high(D01_FRAME_RATE_APROX * 10)
+                ldi r21, 0xFF
+                
+prog_01c_s2_lp1:ldi XL, low(PACKET_BUFFER)
+                ldi XH, high(PACKET_BUFFER)
+                ldi ZL, low(D01_CMD_SET_FRAME_DATA_SIZE)
+                ldi ZH, high(D01_CMD_SET_FRAME_DATA_SIZE)
+
+                st X+, r21
+                sbiw Z, 1
+                brne PC - 2
+
+                lds r20, PACKET_BUFFER
+
+prog_01c_s2_lp2:sbis PINREG, INT_PIN
+                rjmp prog_01c_s2_lp2
+
+                ldi r16, D01_CMD_GET_INT
+                ldi r24, low(D01_CMD_GET_INT_DATA_SIZE)
+                ldi r25, high(D01_CMD_GET_INT_DATA_SIZE)
+                rcall tx_slave_get
+
+                lds r16, PACKET_BUFFER
+                sbrc r16, D01_CMD_GET_INT_FLAG_RESET
+                rjmp step_fail
+                sbrs r16, D01_CMD_GET_INT_FLAG_NEW_FRAME_RDY
+                breq prog_01c_s2_lp2
+
+                sts PACKET_BUFFER, r20
+
+                ldi r16, D01_CMD_SET_FRAME
+                ldi r24, low(D01_CMD_SET_FRAME_DATA_SIZE)
+                ldi r25, high(D01_CMD_SET_FRAME_DATA_SIZE)
+                rcall tx_slave_set
+
+                com r21
+                sbiw Y, 1
+                brne prog_01c_s2_lp1
+
+                rjmp step_pass
+
+prog_01c_s3:    ldi r16, D01_CMD_GET_INT
                 ldi r24, low(D01_CMD_GET_INT_DATA_SIZE)
                 ldi r25, high(D01_CMD_GET_INT_DATA_SIZE)
                 rcall tx_slave_get
@@ -1177,12 +1318,12 @@ prog_01c_s1:    ldi r16, D01_CMD_GET_INT
 
                 ldi r20, 0
 
-prog_01c_s1_lp: in r16, TIFR
+prog_01c_s3_lp: in r16, TIFR
                 sbrc r16, OCF1A
-                rjmp prog_01c_s1_end
+                rjmp prog_01c_s3_end
 
                 sbis PINREG, INT_PIN
-                rjmp prog_01c_s1_lp
+                rjmp prog_01c_s3_lp
                 
                 ldi r16, D01_CMD_GET_INT
                 ldi r24, low(D01_CMD_GET_INT_DATA_SIZE)
@@ -1190,13 +1331,13 @@ prog_01c_s1_lp: in r16, TIFR
                 rcall tx_slave_get
 
                 lds r16, PACKET_BUFFER
-                andi r16, 1 << D01_CMD_GET_INT_FLAG_NEW_FRAME_RDY
-                breq prog_01c_s1_lp
+                sbrs r16, D01_CMD_GET_INT_FLAG_NEW_FRAME_RDY
+                rjmp prog_01c_s3_lp
                 
                 inc r20
-                rjmp prog_01c_s1_lp
+                rjmp prog_01c_s3_lp
 
-prog_01c_s1_end:ldi r16, 0
+prog_01c_s3_end:ldi r16, 0
                 out TCCR1B, r16
                 out TCNT1H, r16
                 out TCNT1L, r16
@@ -1215,8 +1356,12 @@ prog_01c_s1_end:ldi r16, 0
                 rcall tx_byte
 
                 cpi r20, D01_FRAME_RATE_APROX
-                breq PC + 2
+                brsh PC + 2
                 rjmp step_fail
+                cpi r20, D01_FRAME_RATE_APROX + 2
+                brlo PC + 2
+                rjmp step_fail
+
                 rjmp step_pass
 
 ////////////////////////////////////////////////// Root/LC-8x8x8-RGB-01 (Led Cube Slave)/Cube, one color frame
@@ -1226,7 +1371,7 @@ PROG_01F_STRING:
 
 prog_01f_init:  rcall spi_master
 
-                ldi r16, 0
+                ldi r16, 1
                 sts PROGRAM_DATA + 0, r16
                 sts PROGRAM_DATA + 1, r16
                 sts PROGRAM_DATA + 2, r16
