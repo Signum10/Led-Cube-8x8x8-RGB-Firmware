@@ -18,7 +18,7 @@
 .equ D01_TEST_SET_LEDS  = 9
 
 .equ D01_CMD_GET_DEVID_DATA_SIZE        = 1
-.equ D01_CMD_GET_DEVID_VALUE            = 0xAA
+.equ D01_CMD_GET_DEVID_VALUE            = 0xCB
 
 .equ D01_CMD_GET_INT_DATA_SIZE          = 1
 .equ D01_CMD_GET_INT_FLAG_RESET         = 0

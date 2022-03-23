@@ -618,7 +618,7 @@ prog_01i_s4:    ldi r16, D01_TEST_SET_INT
                 dec r16
                 brne PC - 1
 
-                sbis PINREG, INT_PIN
+                sbic PINREG, INT_PIN
                 rjmp step_fail
 
                 ldi r16, D01_CMD_GET_INT
@@ -626,7 +626,7 @@ prog_01i_s4:    ldi r16, D01_TEST_SET_INT
                 ldi r25, high(D01_CMD_GET_INT_DATA_SIZE)
                 rcall tx_slave_get
 
-                sbic PINREG, INT_PIN
+                sbis PINREG, INT_PIN
                 rjmp step_fail
 
                 lds r16, PACKET_BUFFER
@@ -741,7 +741,7 @@ prog_01sm_tx:   ldi r16, D01_TEST_SET_SR_MODE_MANUAL
                 ldi r25, high(D01_TEST_SET_SR_DATA_SIZE)
                 rcall tx_slave_set
 
-prog_01sm_tx_lp:sbis PINREG, INT_PIN
+prog_01sm_tx_lp:sbic PINREG, INT_PIN
                 rjmp prog_01sm_tx_lp
                 
                 ldi r16, D01_CMD_GET_INT
@@ -813,7 +813,7 @@ prog_01sa_s0_4: ldi r16, D01_TEST_SET_SR_MODE_AUTO
                 ldi r25, high(D01_TEST_SET_SR_DATA_SIZE)
                 rcall tx_slave_set
 
-prog_01sa_tx_lp:sbis PINREG, INT_PIN
+prog_01sa_tx_lp:sbic PINREG, INT_PIN
                 rjmp prog_01sa_tx_lp
                 
                 ldi r16, D01_CMD_GET_INT
@@ -1225,7 +1225,7 @@ prog_01c_s1_lp2:mov r16, YH
                 push r25
                 lds r20, PACKET_BUFFER
 
-prog_01c_s1_lp3:sbis PINREG, INT_PIN
+prog_01c_s1_lp3:sbic PINREG, INT_PIN
                 rjmp prog_01c_s1_lp3
 
                 ldi r16, D01_CMD_GET_INT
@@ -1277,7 +1277,7 @@ prog_01c_s2_lp1:ldi XL, low(PACKET_BUFFER)
 
                 lds r20, PACKET_BUFFER
 
-prog_01c_s2_lp2:sbis PINREG, INT_PIN
+prog_01c_s2_lp2:sbic PINREG, INT_PIN
                 rjmp prog_01c_s2_lp2
 
                 ldi r16, D01_CMD_GET_INT
@@ -1322,7 +1322,7 @@ prog_01c_s3_lp: in r16, TIFR
                 sbrc r16, OCF1A
                 rjmp prog_01c_s3_end
 
-                sbis PINREG, INT_PIN
+                sbic PINREG, INT_PIN
                 rjmp prog_01c_s3_lp
                 
                 ldi r16, D01_CMD_GET_INT

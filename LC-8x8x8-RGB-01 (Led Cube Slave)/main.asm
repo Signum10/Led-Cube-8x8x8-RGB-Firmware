@@ -97,7 +97,7 @@ start:          ldi r16, PORTB_INIT
 
                 ldi r16, 1 << D01_CMD_GET_INT_FLAG_RESET
                 sts CMD_GET_INT_DATA, r16
-                sbi INT_PORT, INT_PIN
+                cbi INT_PORT, INT_PIN
                 sei
 
 loop:           sbis FLAGS, FLAG_MODE_CHANGED
@@ -277,7 +277,7 @@ STATE_READ:     cpi SPI_STATE_REGISTER, SPI_STATE_READ
                 brne PC + 5
                 ldi XL, 0
                 sts CMD_GET_INT_DATA, XL
-                cbi INT_PORT, INT_PIN
+                sbi INT_PORT, INT_PIN
 
                 ldi SPI_STATE_REGISTER, SPI_STATE_END
 STATE_END:      out SREG, SPI_SREG_SAVE
@@ -383,7 +383,7 @@ TEST_SET_INT_OP:cpi SPI_OPCODE_REGISTER, D01_TEST_SET_INT
                 lds XL, CMD_GET_INT_DATA
                 ori XL, 1 << D01_CMD_GET_INT_FLAG_TEST_RDY
                 sts CMD_GET_INT_DATA, XL
-                sbi INT_PORT, INT_PIN
+                cbi INT_PORT, INT_PIN
                 
                 ldi SPI_STATE_REGISTER, SPI_STATE_END
                 out SREG, SPI_SREG_SAVE
@@ -450,7 +450,7 @@ INT_LATCH:      inc CURRENT_STAGE
                 lds r16, CMD_GET_INT_DATA
                 ori r16, 1 << D01_CMD_GET_INT_FLAG_NEW_FRAME_RDY
                 sts CMD_GET_INT_DATA, r16
-                sbi INT_PORT, INT_PIN
+                cbi INT_PORT, INT_PIN
 
                 sbis FLAGS, FLAG_FRAME_CHANGED
                 rjmp PC + 5
@@ -591,7 +591,7 @@ TEST_SET_SR:    ldi YL, low(TEST_SET_SR_DATA)
                 lds r16, CMD_GET_INT_DATA
                 ori r16, 1 << D01_CMD_GET_INT_FLAG_TEST_RDY
                 sts CMD_GET_INT_DATA, r16
-                sbi INT_PORT, INT_PIN
+                cbi INT_PORT, INT_PIN
                 sei
                 ret
 
