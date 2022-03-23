@@ -2,7 +2,8 @@
 .include "../Shared/m328Pdef.inc"
 .include "../Shared/definitions.inc"
 
-.equ F_CPU    = D01_F_CPU
+.equ F_CPU          = 16000000
+.equ SLAVE_COUNT    = 6
 
 .equ LED_PIN        = PB1
 .equ SS_PIN         = PB2
@@ -44,8 +45,13 @@
 
 ; Registers / RAM Addresses
 .def CURRENT_SLAVE = r2
+.def CURRENT_INT   = r3
+
+.equ SLAVE_PROC_ELEMENT_SIZE = 2
+.equ SLAVE_PROC_DATA_SIZE    = SLAVE_PROC_ELEMENT_SIZE * SLAVE_COUNT
 
 .dseg
+SLAVE_PROC:     .byte SLAVE_PROC_DATA_SIZE 
 PACKET_BUFFER:  .byte D01_FRAME_SIZE * 2
 
 .cseg

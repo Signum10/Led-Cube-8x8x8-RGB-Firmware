@@ -1,3 +1,12 @@
+////////////////////////////////////////////////// General
+.equ DXX_CMD_GET_DEVID  = 0
+.equ DXX_CMD_GET_INT    = 1
+
+.equ DXX_CMD_GET_DEVID_DATA_SIZE = 1
+
+.equ DXX_CMD_GET_INT_DATA_SIZE   = 1
+.equ DXX_CMD_GET_INT_FLAG_RESET  = 0
+
 ////////////////////////////////////////////////// LC-8x8x8-RGB-01 (Led Cube Slave)
 .equ D01_F_CPU            = 16000000
 .equ D01_CUBE_EDGE_SIZE   = 8
@@ -6,8 +15,8 @@
 .equ D01_FRAME_SIZE       = ((D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE * D01_CUBE_EDGE_SIZE) * (D01_LED_COLORS * D01_LED_COLOR_BITS)) / 8
 .equ D01_FRAME_RATE_APROX = 65 ; For exact calculation, see TIMER2 initialization
 
-.equ D01_CMD_GET_DEVID  = 0
-.equ D01_CMD_GET_INT    = 1
+.equ D01_CMD_GET_DEVID  = DXX_CMD_GET_DEVID
+.equ D01_CMD_GET_INT    = DXX_CMD_GET_INT
 .equ D01_CMD_SET_FRAME  = 2
 .equ D01_CMD_SET_BRIGHT = 3
 .equ D01_TEST_SET       = 4
@@ -17,11 +26,11 @@
 .equ D01_TEST_GET_SR    = 8
 .equ D01_TEST_SET_LEDS  = 9
 
-.equ D01_CMD_GET_DEVID_DATA_SIZE        = 1
+.equ D01_CMD_GET_DEVID_DATA_SIZE        = DXX_CMD_GET_DEVID_DATA_SIZE
 .equ D01_CMD_GET_DEVID_VALUE            = 0xCB
 
-.equ D01_CMD_GET_INT_DATA_SIZE          = 1
-.equ D01_CMD_GET_INT_FLAG_RESET         = 0
+.equ D01_CMD_GET_INT_DATA_SIZE          = DXX_CMD_GET_INT_DATA_SIZE
+.equ D01_CMD_GET_INT_FLAG_RESET         = DXX_CMD_GET_INT_FLAG_RESET
 .equ D01_CMD_GET_INT_FLAG_NEW_FRAME_RDY = 1
 .equ D01_CMD_GET_INT_FLAG_TEST_RDY      = 2
 
@@ -71,3 +80,24 @@
 .equ D01_TEST_SET_LEDS_COLOR_CYAN       = 0b00000110
 .equ D01_TEST_SET_LEDS_COLOR_WHITE      = 0b00000111
 .equ D01_TEST_SET_LEDS_COLOR_COUNT      = 8
+
+////////////////////////////////////////////////// Test Slave
+.equ DTT_CMD_GET_DEVID   = DXX_CMD_GET_DEVID
+.equ DTT_CMD_GET_INT     = DXX_CMD_GET_INT
+.equ DTT_CMD_SEND_PORT   = 2
+.equ DTT_CMD_GET_DATA    = 3
+.equ DTT_CMD_SET_DATA    = 4
+
+.equ DTT_CMD_GET_DEVID_VALUE        = 0x7E
+
+.equ DTT_CMD_GET_INT_DATA_SIZE      = DXX_CMD_GET_INT_DATA_SIZE
+.equ DTT_CMD_GET_INT_FLAG_RESET     = DXX_CMD_GET_INT_FLAG_RESET
+.equ DTT_CMD_GET_INT_FLAG_SEND_PORT = 1
+.equ DTT_CMD_GET_INT_FLAG_GET_DATA  = 2
+.equ DTT_CMD_GET_INT_FLAG_SET_DATA  = 3
+
+.equ DTT_CMD_SEND_PORT_SIZE         = 1
+
+.equ DTT_CMD_GET_DATA_SIZE          = D01_FRAME_SIZE
+
+.equ DTT_CMD_SET_DATA_SIZE          = D01_FRAME_SIZE
