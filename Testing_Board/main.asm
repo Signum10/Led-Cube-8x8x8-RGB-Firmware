@@ -32,22 +32,45 @@ MENU_ROOT:
 
 MENU_00:
 .db "Root/LC-8x8x8-RGB-00 (Master)", 0
-.db 'i', "Interface", 0 \ .dw menu_nav, MENU_00I << 1
-.db 'b', "Back",      0 \ .dw menu_back, 0
+.db '0', "Interface, Slave0", 0 \ .dw menu_nav, MENU_00I0 << 1
+.db '1', "Interface, Slave1", 0 \ .dw menu_nav, MENU_00I1 << 1
+.db '2', "Interface, Slave2", 0 \ .dw menu_nav, MENU_00I2 << 1
+.db '3', "Interface, Slave3", 0 \ .dw menu_nav, MENU_00I3 << 1
+.db '4', "Interface, Slave4", 0 \ .dw menu_nav, MENU_00I4 << 1
+.db '5', "Interface, Slave5", 0 \ .dw menu_nav, MENU_00I5 << 1
+.db 'b', "Back",              0 \ .dw menu_back, 0
 .dw 0
 .dw 0, 0
 
-MENU_00I:
-.db "Root/LC-8x8x8-RGB-00 (Master)/Interface", 0
-.db '0', "Slave0", 0 \ .dw prog_00i, 0
-.db '1', "Slave1", 0 \ .dw prog_00i, 1
-.db '2', "Slave2", 0 \ .dw prog_00i, 2
-.db '3', "Slave3", 0 \ .dw prog_00i, 3
-.db '4', "Slave4", 0 \ .dw prog_00i, 4
-.db '5', "Slave5", 0 \ .dw prog_00i, 5
-.db 'b', "Back",   0 \ .dw menu_back, 0
+MENU_00I0:
+.db "Root/LC-8x8x8-RGB-00 (Master)/Interface, Slave0", 0
 .dw 0
 .dw prog_00i_init, 0
+
+MENU_00I1:
+.db "Root/LC-8x8x8-RGB-00 (Master)/Interface, Slave1", 0
+.dw 0
+.dw prog_00i_init, 1
+
+MENU_00I2:
+.db "Root/LC-8x8x8-RGB-00 (Master)/Interface, Slave2", 0
+.dw 0
+.dw prog_00i_init, 2
+
+MENU_00I3:
+.db "Root/LC-8x8x8-RGB-00 (Master)/Interface, Slave3", 0
+.dw 0
+.dw prog_00i_init, 3
+
+MENU_00I4:
+.db "Root/LC-8x8x8-RGB-00 (Master)/Interface, Slave4", 0
+.dw 0
+.dw prog_00i_init, 4
+
+MENU_00I5:
+.db "Root/LC-8x8x8-RGB-00 (Master)/Interface, Slave5", 0
+.dw 0
+.dw prog_00i_init, 5
 
 MENU_01:
 .db "Root/LC-8x8x8-RGB-01 (Led Cube Slave)", 0
@@ -527,14 +550,232 @@ txrx_spi:       out SPDR, r16
                 in r16, SPDR
                 ret
 
-////////////////////////////////////////////////// Root/LC-8x8x8-RGB-00 (Master)/Interface
+rx_master_set:  ldi XL, low(PACKET_BUFFER)
+                ldi XH, high(PACKET_BUFFER)
+                in r17, SPSR
+                in r17, SPDR
 
-prog_00i_init:  ldi r16, 'i'
-                rjmp tx_byte
+                sbis SPSR, SPIF
+                rjmp PC - 1
 
-prog_00i:       subi r16, -'0'
+                in r17, SPDR
+
+                cp r17, r16
+                breq rx_mas_set_lp
+                clt
+                ret
+
+rx_mas_set_lp:  sbis SPSR, SPIF
+                rjmp PC - 1
+
+                ld r17, X
+                out SPDR, r17
+                in r17, SPDR
+                st X+, r17
+
+                sbiw r25:r24, 1
+                brne rx_mas_set_lp
+
+                set
+                ret
+
+rx_master_get:  ldi XL, low(PACKET_BUFFER)
+                ldi XH, high(PACKET_BUFFER)
+                in r17, SPSR
+                in r17, SPDR
+
+                sbis SPSR, SPIF
+                rjmp PC - 1
+
+                in r17, SPDR
+
+                cp r17, r16
+                breq rx_mas_get_lp
+                clt
+                ret
+
+rx_mas_get_lp:  sbis SPSR, SPIF
+                rjmp PC - 1
+
+                ld r17, X
+                out SPDR, r17
+                in r17, SPDR
+                adiw X, 1
+
+                sbiw r25:r24, 1
+                brne rx_mas_get_lp
+
+                set
+                ret
+
+tx_master_int:  sts PACKET_BUFFER, r16
+                
+                ldi r16, DXX_CMD_GET_INT
+                ldi r24, low(DXX_CMD_GET_INT_DATA_SIZE)
+                ldi r25, high(DXX_CMD_GET_INT_DATA_SIZE)
+
+                cbi PORT, INT_PIN
+
+                rcall rx_master_get
+
+                sbi PORT, INT_PIN
+                ret
+
+////////////////////////////////////////////////// Root/LC-8x8x8-RGB-00 (Master)/Interface, Slave X
+
+PROG_00I_STEPS:
+.db "Getting initialized by master", 0 \ .dw prog_00i_s0
+.db "RX Port from master",           0 \ .dw prog_00i_s1
+.db "RX & TX big packet, pass 1",    0 \ .dw prog_00i_s2a
+.db "RX & TX big packet, pass 2",    0 \ .dw prog_00i_s2b
+.dw 0
+
+prog_00i_init:  sts PROGRAM_DATA, r16
+                rcall spi_slave
+                ldi ZL, low(PROG_00I_STEPS << 1)
+                ldi ZH, high(PROG_00I_STEPS << 1)
+                rjmp step_prog
+                
+prog_00i_s0:    ldi r16, 1 << DTT_CMD_GET_INT_FLAG_RESET
+                rcall tx_master_int
+
+                brts PC + 7
+                ldi r16, 'I'
                 rcall tx_byte
-                rjmp menu_continue
+                rcall tx_8_bit_b16
+                ldi r16, ' '
+                rcall tx_byte
+                rjmp step_fail
+
+                ldi r16, DTT_CMD_GET_DEVID_VALUE
+                sts PACKET_BUFFER, r16
+                ldi r16, DTT_CMD_GET_DEVID
+                ldi r24, low(DTT_CMD_GET_DEVID_DATA_SIZE)
+                ldi r25, high(DTT_CMD_GET_DEVID_DATA_SIZE)
+                rcall rx_master_get
+
+                brts PC + 7
+                ldi r16, 'D'
+                rcall tx_byte
+                rcall tx_8_bit_b16
+                ldi r16, ' '
+                rcall tx_byte
+                rjmp step_fail
+
+                rjmp step_pass
+
+prog_00i_s1:    ldi r16, 1 << DTT_CMD_GET_INT_FLAG_SEND_PORT
+                rcall tx_master_int
+
+                brts PC + 7
+                ldi r16, 'I'
+                rcall tx_byte
+                rcall tx_8_bit_b16
+                ldi r16, ' '
+                rcall tx_byte
+                rjmp step_fail
+
+                ldi r16, DTT_CMD_SEND_PORT
+                ldi r24, low(DTT_CMD_SEND_PORT_DATA_SIZE)
+                ldi r25, high(DTT_CMD_SEND_PORT_DATA_SIZE)
+                rcall rx_master_set
+
+                brts PC + 7
+                ldi r16, 'C'
+                rcall tx_byte
+                rcall tx_8_bit_b16
+                ldi r16, ' '
+                rcall tx_byte
+                rjmp step_fail
+
+                lds r17, PACKET_BUFFER
+                rcall tx_8_bit_b16
+                ldi r16, ' '
+                rcall tx_byte
+
+                lds r16, PROGRAM_DATA
+                cp r16, r17
+                breq PC + 2
+                rjmp step_fail
+                rjmp step_pass
+
+prog_00i_s2a:   ldi r20, 0xAA
+                rjmp prog_00i_s2
+
+prog_00i_s2b:   ldi r20, 0x55
+                rjmp prog_00i_s2
+
+prog_00i_s2:    ldi XL, low(PACKET_BUFFER)
+                ldi XH, high(PACKET_BUFFER)
+                ldi r24, low(DTT_CMD_GET_DATA_SIZE)
+                ldi r25, high(DTT_CMD_GET_DATA_SIZE)
+
+                st X+, r20
+                sbiw r25:r24, 1
+                brne PC - 2
+
+                ldi r16, 1 << DTT_CMD_GET_INT_FLAG_GET_DATA
+                rcall tx_master_int
+
+                brts PC + 7
+                ldi r16, 'I'
+                rcall tx_byte
+                rcall tx_8_bit_b16
+                ldi r16, ' '
+                rcall tx_byte
+                rjmp step_fail
+
+                ldi r16, DTT_CMD_GET_DATA
+                ldi r24, low(DTT_CMD_GET_DATA_SIZE)
+                ldi r25, high(DTT_CMD_GET_DATA_SIZE)
+                rcall rx_master_get
+
+                brts PC + 7
+                ldi r16, 'G'
+                rcall tx_byte
+                rcall tx_8_bit_b16
+                ldi r16, ' '
+                rcall tx_byte
+                rjmp step_fail
+
+                ldi r16, DTT_CMD_SET_DATA
+                ldi r24, low(DTT_CMD_SET_DATA_SIZE)
+                ldi r25, high(DTT_CMD_SET_DATA_SIZE)
+                rcall rx_master_set
+
+                brts PC + 7
+                ldi r16, 'S'
+                rcall tx_byte
+                rcall tx_8_bit_b16
+                ldi r16, ' '
+                rcall tx_byte
+                rjmp step_fail
+
+                ldi XL, low(PACKET_BUFFER)
+                ldi XH, high(PACKET_BUFFER)
+                ldi r24, low(DTT_CMD_SET_DATA_SIZE)
+                ldi r25, high(DTT_CMD_SET_DATA_SIZE)
+                
+                ld r17, X+
+                cp r17, r20
+                brne PC + 4
+                sbiw r25:r24, 1
+                brne PC - 4
+                rjmp step_pass
+
+                subi XL, low(PACKET_BUFFER - 1)
+                sbci XH, high(PACKET_BUFFER - 1)
+
+                rcall tx_8_bit_b16
+                ldi r16, '@'
+                rcall tx_byte
+                mov r17, XH
+                rcall tx_8_bit_b16
+                mov r17, XL
+                rcall tx_8_bit_b16
+                ldi r16, ' '
+                rcall tx_byte
+                rjmp step_fail
 
 ////////////////////////////////////////////////// Root/LC-8x8x8-RGB-01 (Led Cube Slave)/Interface
 

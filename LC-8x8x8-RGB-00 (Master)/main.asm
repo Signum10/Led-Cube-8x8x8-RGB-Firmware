@@ -166,8 +166,38 @@ txrx_spi:       out SPDR, r16
 proc_LC:        ret
 
 ////////////////////////////////////////////////// Test Slave
-proc_TT:        sbrc CURRENT_INT, DTT_CMD_GET_INT_FLAG_SEND_PORT
-                rjmp PC
+proc_TT:        sbrs CURRENT_INT, DTT_CMD_GET_INT_FLAG_SEND_PORT
+                rjmp proc_TT_get
 
-                ;translate slave to port nr and send
-                ldi r16, ~(1 << INT_PIN_SLAVE0)
+proc_TT_port:   ldi r16, ~(1 << INT_PIN_SLAVE0)
+                ldi r17, 0
+
+                cp r16, CURRENT_SLAVE
+                breq PC + 5
+                sec
+                rol r16
+                inc r17
+                rjmp PC - 5
+
+                sts PACKET_BUFFER, r17
+
+                ldi r16, DTT_CMD_SEND_PORT
+                ldi r24, low(DTT_CMD_SEND_PORT_DATA_SIZE)
+                ldi r25, high(DTT_CMD_SEND_PORT_DATA_SIZE)
+                rcall tx_slave_set
+
+proc_TT_get:    sbrs CURRENT_INT, DTT_CMD_GET_INT_FLAG_GET_DATA
+                rjmp proc_TT_set
+
+                ldi r16, DTT_CMD_GET_DATA
+                ldi r24, low(DTT_CMD_GET_DATA_SIZE)
+                ldi r25, high(DTT_CMD_GET_DATA_SIZE)
+                rcall tx_slave_get
+
+proc_TT_set:    sbrs CURRENT_INT, DTT_CMD_GET_INT_FLAG_SET_DATA
+                ret
+
+                ldi r16, DTT_CMD_SET_DATA
+                ldi r24, low(DTT_CMD_SET_DATA_SIZE)
+                ldi r25, high(DTT_CMD_SET_DATA_SIZE)
+                rjmp tx_slave_set
