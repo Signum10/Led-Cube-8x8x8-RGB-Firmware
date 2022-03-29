@@ -609,7 +609,7 @@ rx_mas_get_lp:  sbis SPSR, SPIF
                 ret
 
 tx_master_int:  sts PACKET_BUFFER, r16
-                
+
                 ldi r16, DXX_CMD_GET_INT
                 ldi r24, low(DXX_CMD_GET_INT_DATA_SIZE)
                 ldi r25, high(DXX_CMD_GET_INT_DATA_SIZE)

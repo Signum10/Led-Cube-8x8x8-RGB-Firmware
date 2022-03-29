@@ -47,7 +47,9 @@ loop_init:      ldi r16, ~(1 << INT_PIN_SLAVE0)
                 ldi YH, high(SLAVE_PROC)
 
 loop:           in r16, INT_PINREG
-                and r16, CURRENT_SLAVE
+                mov r17, CURRENT_SLAVE
+                com r17
+                and r16, r17
                 brne loop_cont
 
                 ldi r16, DXX_CMD_GET_INT
@@ -102,8 +104,7 @@ loop_call_proc: ldd ZL, Y + 0
 loop_cont:      adiw Y, SLAVE_PROC_ELEMENT_SIZE
                 sec
                 rol CURRENT_SLAVE
-                ldi r16, ~(1 << (INT_PIN_SLAVE5 + 1))
-                cp CURRENT_SLAVE, r16
+                sbrc CURRENT_SLAVE, INT_PIN_SLAVE5 + 1
                 brne loop
                 rjmp loop_init
 
@@ -169,15 +170,12 @@ proc_LC:        ret
 proc_TT:        sbrs CURRENT_INT, DTT_CMD_GET_INT_FLAG_SEND_PORT
                 rjmp proc_TT_get
 
-proc_TT_port:   ldi r16, ~(1 << INT_PIN_SLAVE0)
-                ldi r17, 0
+proc_TT_port:   mov r16, CURRENT_SLAVE
+                ldi r17, -1
 
-                cp r16, CURRENT_SLAVE
-                breq PC + 5
-                sec
-                rol r16
                 inc r17
-                rjmp PC - 5
+                lsr r16
+                brcs PC - 2
 
                 sts PACKET_BUFFER, r17
 
