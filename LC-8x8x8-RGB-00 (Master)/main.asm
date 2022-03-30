@@ -55,9 +55,11 @@ loop:           in r16, INT_PINREG
                 ldi r16, DXX_CMD_GET_INT
                 ldi r24, low(DXX_CMD_GET_INT_DATA_SIZE)
                 ldi r25, high(DXX_CMD_GET_INT_DATA_SIZE)
-                rcall tx_slave_get
+                ldi XL, low(0)
+                ldi XH, high(0)
+                rcall tx_slave_get_x
 
-                lds CURRENT_INT, PACKET_BUFFER
+                mov CURRENT_INT, r0
 
                 sbrs CURRENT_INT, DXX_CMD_GET_INT_FLAG_RESET
                 rjmp loop_call_proc
@@ -65,9 +67,11 @@ loop:           in r16, INT_PINREG
                 ldi r16, DXX_CMD_GET_DEVID
                 ldi r24, low(DXX_CMD_GET_DEVID_DATA_SIZE)
                 ldi r25, high(DXX_CMD_GET_DEVID_DATA_SIZE)
-                rcall tx_slave_get
+                ldi XL, low(0)
+                ldi XH, high(0)
+                rcall tx_slave_get_x
 
-                lds r17, PACKET_BUFFER
+                mov r17, r0
 
                 ldi r16, 0
                 std Y + 0, r16
@@ -105,7 +109,7 @@ loop_cont:      adiw Y, SLAVE_PROC_ELEMENT_SIZE
                 sec
                 rol CURRENT_SLAVE
                 sbrc CURRENT_SLAVE, INT_PIN_SLAVE5 + 1
-                brne loop
+                rjmp loop
                 rjmp loop_init
 
 LUT_devids_proc:
@@ -115,17 +119,17 @@ LUT_devids_proc:
 
 //////////////////////////////////////////////////
 
-tx_slave_set:   in XL, SS_PORT
-                and XL, CURRENT_SLAVE
-                out SS_PORT, XL
+tx_slave_set:   ldi XL, low(PACKET_BUFFER)
+                ldi XH, high(PACKET_BUFFER)
+
+tx_slave_set_x: in r1, SS_PORT
+                and r1, CURRENT_SLAVE
+                out SS_PORT, r1
 
                 rcall txrx_spi
 
                 sbiw r25:r24, 0
-                breq PC + 7
-
-                ldi XL, low(PACKET_BUFFER)
-                ldi XH, high(PACKET_BUFFER)
+                breq PC + 5
 
                 ld r16, X+
                 rcall txrx_spi
@@ -136,16 +140,16 @@ tx_slave_set:   in XL, SS_PORT
                 out SS_PORT, XL
                 ret
 
-tx_slave_get:   in XL, SS_PORT
-                and XL, CURRENT_SLAVE
-                out SS_PORT, XL
+tx_slave_get:   ldi XL, low(PACKET_BUFFER)
+                ldi XH, high(PACKET_BUFFER)
+
+tx_slave_get_x: in r1, SS_PORT
+                and r1, CURRENT_SLAVE
+                out SS_PORT, r1
 
                 rcall txrx_spi
 
                 rcall txrx_spi ; dummy for slave to have enough time to load response
-
-                ldi XL, low(PACKET_BUFFER)
-                ldi XH, high(PACKET_BUFFER)
 
                 rcall txrx_spi
                 st X+, r16
@@ -157,8 +161,8 @@ tx_slave_get:   in XL, SS_PORT
                 ret
 
 txrx_spi:       out SPDR, r16
-                in r0, SPSR
-                sbrs r0, SPIF
+                in r16, SPSR
+                sbrs r16, SPIF
                 rjmp PC - 2
                 in r16, SPDR
                 ret

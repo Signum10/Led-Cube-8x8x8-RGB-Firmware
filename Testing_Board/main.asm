@@ -550,9 +550,7 @@ txrx_spi:       out SPDR, r16
                 in r16, SPDR
                 ret
 
-rx_master_set:  ldi XL, low(PACKET_BUFFER)
-                ldi XH, high(PACKET_BUFFER)
-                in r17, SPSR
+rx_master_set:  sbic SPSR, SPIF
                 in r17, SPDR
 
                 sbis SPSR, SPIF
@@ -561,15 +559,16 @@ rx_master_set:  ldi XL, low(PACKET_BUFFER)
                 in r17, SPDR
 
                 cp r17, r16
-                breq rx_mas_set_lp
+                breq PC + 3
                 clt
                 ret
+
+                ldi XL, low(PACKET_BUFFER)
+                ldi XH, high(PACKET_BUFFER)
 
 rx_mas_set_lp:  sbis SPSR, SPIF
                 rjmp PC - 1
 
-                ld r17, X
-                out SPDR, r17
                 in r17, SPDR
                 st X+, r17
 
@@ -579,9 +578,7 @@ rx_mas_set_lp:  sbis SPSR, SPIF
                 set
                 ret
 
-rx_master_get:  ldi XL, low(PACKET_BUFFER)
-                ldi XH, high(PACKET_BUFFER)
-                in r17, SPSR
+rx_master_get:  sbic SPSR, SPIF
                 in r17, SPDR
 
                 sbis SPSR, SPIF
@@ -590,25 +587,35 @@ rx_master_get:  ldi XL, low(PACKET_BUFFER)
                 in r17, SPDR
 
                 cp r17, r16
-                breq rx_mas_get_lp
+                breq PC + 3
                 clt
                 ret
+
+                ldi XL, low(PACKET_BUFFER)
+                ldi XH, high(PACKET_BUFFER)
 
 rx_mas_get_lp:  sbis SPSR, SPIF
                 rjmp PC - 1
 
-                ld r17, X
+                ld r17, X+
                 out SPDR, r17
                 in r17, SPDR
-                adiw X, 1
 
                 sbiw r25:r24, 1
                 brne rx_mas_get_lp
 
+                sbis SPSR, SPIF
+                rjmp PC - 1
+
+                in r17, SPDR
+
                 set
                 ret
 
-tx_master_int:  sts PACKET_BUFFER, r16
+tx_master_int:  lds r24, PACKET_BUFFER
+                push r24
+
+                sts PACKET_BUFFER, r16
 
                 ldi r16, DXX_CMD_GET_INT
                 ldi r24, low(DXX_CMD_GET_INT_DATA_SIZE)
@@ -619,6 +626,9 @@ tx_master_int:  sts PACKET_BUFFER, r16
                 rcall rx_master_get
 
                 sbi PORT, INT_PIN
+
+                pop r24
+                sts PACKET_BUFFER, r24
                 ret
 
 ////////////////////////////////////////////////// Root/LC-8x8x8-RGB-00 (Master)/Interface, Slave X
@@ -738,6 +748,17 @@ prog_00i_s2:    ldi XL, low(PACKET_BUFFER)
                 rcall tx_byte
                 rjmp step_fail
 
+                ldi r16, 1 << DTT_CMD_GET_INT_FLAG_SET_DATA
+                rcall tx_master_int
+
+                brts PC + 7
+                ldi r16, 'i'
+                rcall tx_byte
+                rcall tx_8_bit_b16
+                ldi r16, ' '
+                rcall tx_byte
+                rjmp step_fail
+
                 ldi r16, DTT_CMD_SET_DATA
                 ldi r24, low(DTT_CMD_SET_DATA_SIZE)
                 ldi r25, high(DTT_CMD_SET_DATA_SIZE)
@@ -763,8 +784,8 @@ prog_00i_s2:    ldi XL, low(PACKET_BUFFER)
                 brne PC - 4
                 rjmp step_pass
 
-                subi XL, low(PACKET_BUFFER - 1)
-                sbci XH, high(PACKET_BUFFER - 1)
+                subi XL, low(PACKET_BUFFER + 1)
+                sbci XH, high(PACKET_BUFFER + 1)
 
                 rcall tx_8_bit_b16
                 ldi r16, '@'

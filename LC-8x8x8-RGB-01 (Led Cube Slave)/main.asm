@@ -114,7 +114,9 @@ loop:           sbis FLAGS, FLAG_MODE_CHANGED
                 rcall TEST_MODE
                 sei
 
-loop_cont:      sbis FLAGS, FLAG_TEST_COMMAND
+loop_cont:      sbis FLAGS, FLAG_TEST_STATE
+                rjmp loop
+                sbis FLAGS, FLAG_TEST_COMMAND
                 rjmp loop
                 cbi FLAGS, FLAG_TEST_COMMAND
 
