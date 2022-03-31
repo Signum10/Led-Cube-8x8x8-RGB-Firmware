@@ -20,9 +20,8 @@
 .equ FLAGS                = GPIOR0
 .equ FLAG_TEST_STATE      = 0
 .equ FLAG_TEST_COMMAND    = 1
-.equ FLAG_MODE_CHANGED    = 2
-.equ FLAG_FRAME_CHANGED   = 3
-.equ FLAG_BRIGHT_CHANGED  = 4
+.equ FLAG_FRAME_CHANGED   = 2
+.equ FLAG_BRIGHT_CHANGED  = 3
 
 ; PORTS
 .equ PORTB_INIT = (1 << INT_PIN)
@@ -55,8 +54,6 @@
 .equ TCCR2A_INIT = (1 << COM2B1) | (1 << COM2B0) | (1 << WGM21) | (1 << WGM20)
 .equ TCCR2B_INIT = (1 << CS21)
 .equ OCR2B_INIT  = (256 / 2) - 1
-.equ TIMSK2_INIT = (1 << OCIE2B)
-.equ TIFR2_CLR   = (1 << OCF2B)
 
 ; Registers / RAM Addresses
 .def SPI_POINTER_END_L   = r2
@@ -68,10 +65,9 @@
 .def NEXT_FRAME_L        = r8
 .def NEXT_FRAME_H        = r9
 .def CURRENT_BRIGHT      = r10
-.def CURRENT_STAGE       = r20
-.def CURRENT_LEVEL       = r21
-.def SPI_OPCODE_REGISTER = r22
-.def SPI_STATE_REGISTER  = r23
+.def CURRENT_STAGE       = r21
+.def CURRENT_LEVEL       = r22
+.def SPI_OPCODE_REGISTER = r23
 
 .equ SPI_STATE_START    = 0
 .equ SPI_STATE_WRITE    = 1

@@ -1639,6 +1639,8 @@ prog_01f_init:  rcall spi_master
                 sts PROGRAM_DATA + 2, r16
                 ldi r16, D01_CMD_SET_BRIGHT_MAX
                 sts PROGRAM_DATA + 3, r16
+                ldi r16, 0b11
+                sts PROGRAM_DATA + 4, r16
                 rjmp prog_01f_upd
 
 .macro PROG_01F_MACRO
@@ -1646,17 +1648,18 @@ prog_01f_init:  rcall spi_master
                 add r18, r16
                 andi r18, 0x0F
                 sts PROGRAM_DATA + @0, r18
-                @1
+                ldi r18, @1
+                sts PROGRAM_DATA + 4, r18
                 rjmp prog_01f_upd
 .endmacro
 
-prog_01f_r:     PROG_01F_MACRO 0, set
+prog_01f_r:     PROG_01F_MACRO 0, 0b01
                 
-prog_01f_g:     PROG_01F_MACRO 1, set
+prog_01f_g:     PROG_01F_MACRO 1, 0b01
 
-prog_01f_b:     PROG_01F_MACRO 2, set
+prog_01f_b:     PROG_01F_MACRO 2, 0b01
 
-prog_01f_br:    PROG_01F_MACRO 3, clt
+prog_01f_br:    PROG_01F_MACRO 3, 0b10
 
 prog_01f_upd:   rcall tx_crlf
                 
@@ -1689,8 +1692,12 @@ prog_01f_upd:   rcall tx_crlf
                 lds r17, PROGRAM_DATA + 3
                 rcall tx_8_bit_b16
 
-                brts prog_01f_txf
-                rjmp prog_01f_txbr
+                lds r0, PROGRAM_DATA + 4
+                sbrc r0, 0
+                rcall prog_01f_txf
+                sbrc r0, 1
+                rcall prog_01f_txbr
+                rjmp menu_continue
 
 prog_01f_txf:   lds r16, PROGRAM_DATA + 0
                 lds r17, PROGRAM_DATA + 1
@@ -1722,8 +1729,7 @@ prog_01f_txf:   lds r16, PROGRAM_DATA + 0
                 ldi r16, D01_CMD_SET_FRAME
                 ldi r24, low(D01_CMD_SET_FRAME_DATA_SIZE)
                 ldi r25, high(D01_CMD_SET_FRAME_DATA_SIZE)
-                rcall tx_slave_set
-                rjmp menu_continue
+                rjmp tx_slave_set
 
 prog_01f_txbr:  lds r16, PROGRAM_DATA + 3
                 sts PACKET_BUFFER, r16
@@ -1731,5 +1737,4 @@ prog_01f_txbr:  lds r16, PROGRAM_DATA + 3
                 ldi r16, D01_CMD_SET_BRIGHT
                 ldi r24, low(D01_CMD_SET_BRIGHT_DATA_SIZE)
                 ldi r25, high(D01_CMD_SET_BRIGHT_DATA_SIZE)
-                rcall tx_slave_set
-                rjmp menu_continue
+                rjmp tx_slave_set

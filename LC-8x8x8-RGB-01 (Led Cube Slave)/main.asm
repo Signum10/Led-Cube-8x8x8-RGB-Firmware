@@ -1,15 +1,14 @@
 .include "definitions.inc"
 
 .org 0x0000     rjmp start
-.org INT0addr   ldi SPI_STATE_REGISTER, SPI_STATE_START
-                reti
+.org INT0addr   rjmp INT_SPI_CS
 .org INT1addr   reti
 .org PCI0addr   reti
 .org PCI1addr   reti
 .org PCI2addr   reti
 .org WDTaddr    reti
 .org OC2Aaddr   reti
-.org OC2Baddr   rjmp INT_LATCH
+.org OC2Baddr   reti
 .org OVF2addr   reti
 .org ICP1addr   reti
 .org OC1Aaddr   reti
@@ -18,7 +17,7 @@
 .org OC0Aaddr   reti
 .org OC0Baddr   reti
 .org OVF0addr   reti
-.org SPIaddr    rjmp INT_SPI
+.org SPIaddr    ijmp
 .org URXCaddr   reti
 .org UDREaddr   reti
 .org UTXCaddr   reti
@@ -77,10 +76,9 @@ start:          ldi r16, PORTB_INIT
 
                 ldi r16, OCR2B_INIT
                 sts OCR2B, r16
-                ldi r16, TIMSK2_INIT
-                sts TIMSK2, r16
-
-                ldi SPI_STATE_REGISTER, SPI_STATE_END
+                
+                ldi ZL, low(INT_SPI_END)
+                ldi ZH, high(INT_SPI_END)
 
                 ldi r16, low(CMD_SET_FRAME_DATA)
                 ldi r17, high(CMD_SET_FRAME_DATA)
@@ -93,58 +91,14 @@ start:          ldi r16, PORTB_INIT
                 ldi r16, D01_CMD_GET_DEVID_VALUE
                 sts CMD_GET_DEVID_DATA, r16
 
-                rcall NORMAL_MODE
-
                 ldi r16, 1 << D01_CMD_GET_INT_FLAG_RESET
                 sts CMD_GET_INT_DATA, r16
                 cbi INT_PORT, INT_PIN
                 sei
 
-loop:           sbis FLAGS, FLAG_MODE_CHANGED
-                rjmp loop_cont
-                cli
-                cbi FLAGS, FLAG_MODE_CHANGED
-
-                sbis FLAGS, FLAG_TEST_STATE
-                rjmp PC + 4
-                rcall NORMAL_MODE
-                sei
-                rjmp loop
-
-                rcall TEST_MODE
-                sei
-
-loop_cont:      sbis FLAGS, FLAG_TEST_STATE
-                rjmp loop
-                sbis FLAGS, FLAG_TEST_COMMAND
-                rjmp loop
-                cbi FLAGS, FLAG_TEST_COMMAND
-
-                cpi SPI_OPCODE_REGISTER, D01_TEST_SET_SR
-                brne PC + 3
-                rcall TEST_SET_SR
-                rjmp loop
-
-                cpi SPI_OPCODE_REGISTER, D01_TEST_SET_LEDS
-                brne loop
-                rcall TEST_SET_LEDS
-                rjmp loop
-
 //////////////////////////////////////////////////
 
-NORMAL_MODE:    movw Y, CURRENT_FRAME_H:CURRENT_FRAME_L
-                ldi ZL, low(D01_FRAME_SIZE)
-                ldi ZH, high(D01_FRAME_SIZE)
-                ldi r16, 0
-
-                st Y+, r16
-                sbiw Z, 1
-                brne PC - 2
-
-                ldi r16, D01_CMD_SET_BRIGHT_MAX
-                mov CURRENT_BRIGHT, r16
-                ldi CURRENT_STAGE, STAGE_MAX - 1
-                ldi CURRENT_LEVEL, LEVEL_MAX - 1
+loop_nor_init:  sbi ENABLE_PORT, ENABLE_PIN
 
                 ldi r16, 1 << TXC0
                 sts UCSR0A, r16
@@ -185,275 +139,51 @@ NORMAL_MODE:    movw Y, CURRENT_FRAME_H:CURRENT_FRAME_L
                 dec r16
                 brne PC - 1
                 cbi LATCH_PORT, LATCH_PIN
-
+                ldi r16, 0
+                dec r16
+                brne PC - 1
+                
                 cbi ENABLE_PORT, ENABLE_PIN
 
-                cbi FLAGS, FLAG_TEST_STATE
+                movw Y, CURRENT_FRAME_H:CURRENT_FRAME_L
+                ldi r24, low(D01_FRAME_SIZE)
+                ldi r25, high(D01_FRAME_SIZE)
+                ldi r16, 0
+
+                st Y+, r16
+                sbiw r25:r24, 1
+                brne PC - 2
+
+                ldi r16, D01_CMD_SET_BRIGHT_MAX
+                mov CURRENT_BRIGHT, r16
+                ldi CURRENT_STAGE, STAGE_MAX - 1
+                ldi CURRENT_LEVEL, LEVEL_MAX - 1
+
                 cbi FLAGS, FLAG_TEST_COMMAND
-                
+
                 ldi r16, TCCR2A_INIT
                 sts TCCR2A, r16
                 ldi r16, TCCR2B_INIT
                 sts TCCR2B, r16
-                ret
-
-//////////////////////////////////////////////////
-
-TEST_MODE:      sbi ENABLE_PORT, ENABLE_PIN
-
-                ldi r16, 0
-                sts TCCR2A, r16
-                sts TCCR2B, r16
-                sts TCNT2, r16
-                ldi r16, TIFR2_CLR
-                sts TIFR2, r16
-
-                cbi LATCH_PORT, LATCH_PIN
-
-                sbi FLAGS, FLAG_TEST_STATE
-                cbi FLAGS, FLAG_FRAME_CHANGED
-                cbi FLAGS, FLAG_BRIGHT_CHANGED
-                ret
-
-//////////////////////////////////////////////////
-
-INT_SPI:        ld SPI_DATA_REGISTER, X
-                out SPDR, SPI_DATA_REGISTER
-                in SPI_DATA_REGISTER, SPDR
-
-                in SPI_SREG_SAVE, SREG
-
-STATE_WRITE:    cpi SPI_STATE_REGISTER, SPI_STATE_WRITE
-                brne STATE_READ
-
-                st X+, SPI_DATA_REGISTER
                 
-                cp XL, SPI_POINTER_END_L
-                cpc XH, SPI_POINTER_END_H
-                brsh PC + 3
-                out SREG, SPI_SREG_SAVE
-                reti
+loop_nor:       sbic FLAGS, FLAG_TEST_STATE
+                rjmp loop_test_init
 
-                cpi SPI_OPCODE_REGISTER, D01_CMD_SET_FRAME
-                brne PC + 7
-                sbic FLAGS, FLAG_TEST_STATE
-                sbi FLAGS, FLAG_MODE_CHANGED
-                sbi FLAGS, FLAG_FRAME_CHANGED
-                ldi SPI_STATE_REGISTER, SPI_STATE_END
-                out SREG, SPI_SREG_SAVE
-                reti
+                sbis TIFR2, OCF2B
+                rjmp loop_nor
+                sbi TIFR2, OCF2B
 
-                cpi SPI_OPCODE_REGISTER, D01_CMD_SET_BRIGHT
-                brne PC + 7
-                sbic FLAGS, FLAG_TEST_STATE
-                sbi FLAGS, FLAG_MODE_CHANGED
-                sbi FLAGS, FLAG_BRIGHT_CHANGED
-                ldi SPI_STATE_REGISTER, SPI_STATE_END
-                out SREG, SPI_SREG_SAVE
-                reti
-
-                cpi SPI_OPCODE_REGISTER, D01_TEST_SET_SR
-                breq PC + 3
-                cpi SPI_OPCODE_REGISTER, D01_TEST_SET_LEDS
-                brne PC + 4
-                sbis FLAGS, FLAG_TEST_STATE
-                sbi FLAGS, FLAG_MODE_CHANGED
-                sbi FLAGS, FLAG_TEST_COMMAND
-
-                ldi SPI_STATE_REGISTER, SPI_STATE_END
-                out SREG, SPI_SREG_SAVE
-                reti
-
-STATE_READ:     cpi SPI_STATE_REGISTER, SPI_STATE_READ
-                brne STATE_START
-
-                adiw X, 1
-
-                cp XL, SPI_POINTER_END_L
-                cpc XH, SPI_POINTER_END_H
-                brsh PC + 3
-                out SREG, SPI_SREG_SAVE
-                reti
-
-                cpi SPI_OPCODE_REGISTER, D01_CMD_GET_INT
-                brne PC + 5
-                ldi XL, 0
-                sts CMD_GET_INT_DATA, XL
-                sbi INT_PORT, INT_PIN
-
-                ldi SPI_STATE_REGISTER, SPI_STATE_END
-STATE_END:      out SREG, SPI_SREG_SAVE
-                reti
-
-STATE_START:    cpi SPI_STATE_REGISTER, SPI_STATE_START
-                brne STATE_END
-
-                mov SPI_OPCODE_REGISTER, SPI_DATA_REGISTER
-
-CMD_SET_FRAME_O:cpi SPI_OPCODE_REGISTER, D01_CMD_SET_FRAME
-                brne CMD_GET_INT_OP
-
-                movw SPI_POINTER_END_H:SPI_POINTER_END_L, NEXT_FRAME_H:NEXT_FRAME_L
-                ldi XL, low(D01_CMD_SET_FRAME_DATA_SIZE)
-                ldi XH, high(D01_CMD_SET_FRAME_DATA_SIZE)
-                add SPI_POINTER_END_L, XL
-                adc SPI_POINTER_END_H, XH
-
-                movw X, NEXT_FRAME_H:NEXT_FRAME_L
-                
-                cbi FLAGS, FLAG_FRAME_CHANGED
-                ldi SPI_STATE_REGISTER, SPI_STATE_WRITE
-                out SREG, SPI_SREG_SAVE
-                reti
-
-CMD_GET_INT_OP: cpi SPI_OPCODE_REGISTER, D01_CMD_GET_INT
-                brne CMD_SET_BRGHT_O
-
-                ldi XL, low(CMD_GET_INT_DATA + D01_CMD_GET_INT_DATA_SIZE)
-                ldi XH, high(CMD_GET_INT_DATA + D01_CMD_GET_INT_DATA_SIZE)
-                movw SPI_POINTER_END_H:SPI_POINTER_END_L, X
-
-                ldi XL, low(CMD_GET_INT_DATA)
-                ldi XH, high(CMD_GET_INT_DATA)
-                
-                ldi SPI_STATE_REGISTER, SPI_STATE_READ
-                out SREG, SPI_SREG_SAVE
-                reti
-
-CMD_SET_BRGHT_O:cpi SPI_OPCODE_REGISTER, D01_CMD_SET_BRIGHT
-                brne CMD_GET_DEVID_O
-
-                ldi XL, low(CMD_SET_BRIGHT_DATA + D01_CMD_SET_BRIGHT_DATA_SIZE)
-                ldi XH, high(CMD_SET_BRIGHT_DATA + D01_CMD_SET_BRIGHT_DATA_SIZE)
-                movw SPI_POINTER_END_H:SPI_POINTER_END_L, X
-
-                ldi XL, low(CMD_SET_BRIGHT_DATA)
-                ldi XH, high(CMD_SET_BRIGHT_DATA)
-                
-                cbi FLAGS, FLAG_BRIGHT_CHANGED
-                ldi SPI_STATE_REGISTER, SPI_STATE_WRITE
-                out SREG, SPI_SREG_SAVE
-                reti
-
-CMD_GET_DEVID_O:cpi SPI_OPCODE_REGISTER, D01_CMD_GET_DEVID
-                brne TEST_SET_OP
-
-                ldi XL, low(CMD_GET_DEVID_DATA + D01_CMD_GET_DEVID_DATA_SIZE)
-                ldi XH, high(CMD_GET_DEVID_DATA + D01_CMD_GET_DEVID_DATA_SIZE)
-                movw SPI_POINTER_END_H:SPI_POINTER_END_L, X
-
-                ldi XL, low(CMD_GET_DEVID_DATA)
-                ldi XH, high(CMD_GET_DEVID_DATA)
-                
-                ldi SPI_STATE_REGISTER, SPI_STATE_READ
-                out SREG, SPI_SREG_SAVE
-                reti
-
-TEST_SET_OP:    cpi SPI_OPCODE_REGISTER, D01_TEST_SET
-                brne TEST_GET_OP
-
-                movw SPI_POINTER_END_H:SPI_POINTER_END_L, NEXT_FRAME_H:NEXT_FRAME_L
-                ldi XL, low(D01_CMD_SET_FRAME_DATA_SIZE)
-                ldi XH, high(D01_CMD_SET_FRAME_DATA_SIZE)
-                add SPI_POINTER_END_L, XL
-                adc SPI_POINTER_END_H, XH
-
-                movw X, NEXT_FRAME_H:NEXT_FRAME_L
-                
-                ldi SPI_STATE_REGISTER, SPI_STATE_WRITE
-                out SREG, SPI_SREG_SAVE
-                reti
-
-TEST_GET_OP:    cpi SPI_OPCODE_REGISTER, D01_TEST_GET
-                brne TEST_SET_INT_OP
-
-                movw SPI_POINTER_END_H:SPI_POINTER_END_L, NEXT_FRAME_H:NEXT_FRAME_L
-                ldi XL, low(D01_CMD_SET_FRAME_DATA_SIZE)
-                ldi XH, high(D01_CMD_SET_FRAME_DATA_SIZE)
-                add SPI_POINTER_END_L, XL
-                adc SPI_POINTER_END_H, XH
-
-                movw X, NEXT_FRAME_H:NEXT_FRAME_L
-                
-                ldi SPI_STATE_REGISTER, SPI_STATE_READ
-                out SREG, SPI_SREG_SAVE
-                reti
-
-TEST_SET_INT_OP:cpi SPI_OPCODE_REGISTER, D01_TEST_SET_INT
-                brne TEST_SET_SR_OP
-
-                lds XL, CMD_GET_INT_DATA
-                ori XL, 1 << D01_CMD_GET_INT_FLAG_TEST_RDY
-                sts CMD_GET_INT_DATA, XL
-                cbi INT_PORT, INT_PIN
-                
-                ldi SPI_STATE_REGISTER, SPI_STATE_END
-                out SREG, SPI_SREG_SAVE
-                reti
-
-TEST_SET_SR_OP: cpi SPI_OPCODE_REGISTER, D01_TEST_SET_SR
-                brne TEST_GET_SR_OP
-
-                ldi XL, low(TEST_SET_SR_DATA + D01_TEST_SET_SR_DATA_SIZE)
-                ldi XH, high(TEST_SET_SR_DATA + D01_TEST_SET_SR_DATA_SIZE)
-                movw SPI_POINTER_END_H:SPI_POINTER_END_L, X
-
-                ldi XL, low(TEST_SET_SR_DATA)
-                ldi XH, high(TEST_SET_SR_DATA)
-                
-                ldi SPI_STATE_REGISTER, SPI_STATE_WRITE
-                out SREG, SPI_SREG_SAVE
-                reti
-
-TEST_GET_SR_OP: cpi SPI_OPCODE_REGISTER, D01_TEST_GET_SR
-                brne TEST_SET_LEDS_O
-
-                ldi XL, low(TEST_GET_SR_DATA + D01_TEST_GET_SR_DATA_SIZE)
-                ldi XH, high(TEST_GET_SR_DATA + D01_TEST_GET_SR_DATA_SIZE)
-                movw SPI_POINTER_END_H:SPI_POINTER_END_L, X
-
-                ldi XL, low(TEST_GET_SR_DATA)
-                ldi XH, high(TEST_GET_SR_DATA)
-                
-                ldi SPI_STATE_REGISTER, SPI_STATE_READ
-                out SREG, SPI_SREG_SAVE
-                reti
-
-TEST_SET_LEDS_O:cpi SPI_OPCODE_REGISTER, D01_TEST_SET_LEDS
-                brne INVALID_OPCODE
-
-                ldi XL, low(TEST_SET_LEDS_DATA + D01_TEST_SET_LEDS_DATA_SIZE)
-                ldi XH, high(TEST_SET_LEDS_DATA + D01_TEST_SET_LEDS_DATA_SIZE)
-                movw SPI_POINTER_END_H:SPI_POINTER_END_L, X
-
-                ldi XL, low(TEST_SET_LEDS_DATA)
-                ldi XH, high(TEST_SET_LEDS_DATA)
-                
-                ldi SPI_STATE_REGISTER, SPI_STATE_WRITE
-                out SREG, SPI_SREG_SAVE
-                reti
-
-INVALID_OPCODE: ldi SPI_STATE_REGISTER, SPI_STATE_END
-                out SREG, SPI_SREG_SAVE
-                reti
-
-//////////////////////////////////////////////////
-
-INT_LATCH:      inc CURRENT_STAGE
+                inc CURRENT_STAGE
                 cpi CURRENT_STAGE, STAGE_MAX
-                brlo INT_LATCH_CONT
+                brlo loop_nor_cont
                 clr CURRENT_STAGE
 
                 inc CURRENT_LEVEL
                 cpi CURRENT_LEVEL, LEVEL_MAX
-                brlo INT_LATCH_CONT
+                brlo loop_nor_cont
                 clr CURRENT_LEVEL
 
-                lds r16, CMD_GET_INT_DATA
-                ori r16, 1 << D01_CMD_GET_INT_FLAG_NEW_FRAME_RDY
-                sts CMD_GET_INT_DATA, r16
-                cbi INT_PORT, INT_PIN
-
+                cli
                 sbis FLAGS, FLAG_FRAME_CHANGED
                 rjmp PC + 5
                 cbi FLAGS, FLAG_FRAME_CHANGED
@@ -467,10 +197,14 @@ INT_LATCH:      inc CURRENT_STAGE
                 lds r16, CMD_SET_BRIGHT_DATA
                 andi r16, (1 << D01_LED_COLOR_BITS) - 1
                 movw CURRENT_BRIGHT, r16
-                
-INT_LATCH_CONT: sei ; allows INT_SPI
 
-                mov r16, CURRENT_BRIGHT
+                lds r16, CMD_GET_INT_DATA
+                ori r16, 1 << D01_CMD_GET_INT_FLAG_NEW_FRAME_RDY
+                sts CMD_GET_INT_DATA, r16
+                cbi INT_PORT, INT_PIN
+                sei
+                
+loop_nor_cont:  mov r16, CURRENT_BRIGHT
 
                 mov r17, CURRENT_STAGE
                 swap r17
@@ -557,7 +291,268 @@ INT_LATCH_CONT: sei ; allows INT_SPI
                 rjmp PC - 3
 
                 sts UDR0, r19
+
+                rjmp loop_nor
+
+//////////////////////////////////////////////////
+
+loop_test_init: sbi ENABLE_PORT, ENABLE_PIN
+
+                ldi r16, 0
+                sts TCCR2B, r16
+                sts TCCR2A, r16
+
+                cbi LATCH_PORT, LATCH_PIN
+
+                cbi FLAGS, FLAG_FRAME_CHANGED
+                cbi FLAGS, FLAG_BRIGHT_CHANGED
+
+loop_test:      sbis FLAGS, FLAG_TEST_STATE
+                rjmp loop_nor_init
+
+                sbis FLAGS, FLAG_TEST_COMMAND
+                rjmp loop_test
+                cbi FLAGS, FLAG_TEST_COMMAND
+
+                cpi SPI_OPCODE_REGISTER, D01_TEST_SET_SR
+                brne PC + 3
+                rcall TEST_SET_SR
+                rjmp loop_test
+
+                cpi SPI_OPCODE_REGISTER, D01_TEST_SET_LEDS
+                brne loop_test
+                rcall TEST_SET_LEDS
+                rjmp loop_test
+
+//////////////////////////////////////////////////
+
+INT_SPI_CS:     ldi ZL, low(INT_SPI_OPCODE)
+                ldi ZH, high(INT_SPI_OPCODE)
                 reti
+
+INT_SPI_OPCODE: in SPI_OPCODE_REGISTER, SPDR
+                in SPI_SREG_SAVE, SREG
+
+CMD_SET_FRAME_O:cpi SPI_OPCODE_REGISTER, D01_CMD_SET_FRAME
+                brne CMD_GET_INT_OP
+
+                movw SPI_POINTER_END_H:SPI_POINTER_END_L, NEXT_FRAME_H:NEXT_FRAME_L
+                ldi XL, low(D01_CMD_SET_FRAME_DATA_SIZE)
+                ldi XH, high(D01_CMD_SET_FRAME_DATA_SIZE)
+                add SPI_POINTER_END_L, XL
+                adc SPI_POINTER_END_H, XH
+
+                movw X, NEXT_FRAME_H:NEXT_FRAME_L
+                
+                cbi FLAGS, FLAG_FRAME_CHANGED
+                ldi ZL, low(INT_SPI_WRITE)
+                ldi ZH, high(INT_SPI_WRITE)
+                out SREG, SPI_SREG_SAVE
+                reti
+
+CMD_GET_INT_OP: cpi SPI_OPCODE_REGISTER, D01_CMD_GET_INT
+                brne CMD_SET_BRGHT_O
+
+                ldi XL, low(CMD_GET_INT_DATA + D01_CMD_GET_INT_DATA_SIZE)
+                ldi XH, high(CMD_GET_INT_DATA + D01_CMD_GET_INT_DATA_SIZE)
+                movw SPI_POINTER_END_H:SPI_POINTER_END_L, X
+
+                ldi XL, low(CMD_GET_INT_DATA)
+                ldi XH, high(CMD_GET_INT_DATA)
+                
+                ldi ZL, low(INT_SPI_READ)
+                ldi ZH, high(INT_SPI_READ)
+                out SREG, SPI_SREG_SAVE
+                reti
+
+CMD_SET_BRGHT_O:cpi SPI_OPCODE_REGISTER, D01_CMD_SET_BRIGHT
+                brne CMD_GET_DEVID_O
+
+                ldi XL, low(CMD_SET_BRIGHT_DATA + D01_CMD_SET_BRIGHT_DATA_SIZE)
+                ldi XH, high(CMD_SET_BRIGHT_DATA + D01_CMD_SET_BRIGHT_DATA_SIZE)
+                movw SPI_POINTER_END_H:SPI_POINTER_END_L, X
+
+                ldi XL, low(CMD_SET_BRIGHT_DATA)
+                ldi XH, high(CMD_SET_BRIGHT_DATA)
+                
+                cbi FLAGS, FLAG_BRIGHT_CHANGED
+                ldi ZL, low(INT_SPI_WRITE)
+                ldi ZH, high(INT_SPI_WRITE)
+                out SREG, SPI_SREG_SAVE
+                reti
+
+CMD_GET_DEVID_O:cpi SPI_OPCODE_REGISTER, D01_CMD_GET_DEVID
+                brne TEST_SET_OP
+
+                ldi XL, low(CMD_GET_DEVID_DATA + D01_CMD_GET_DEVID_DATA_SIZE)
+                ldi XH, high(CMD_GET_DEVID_DATA + D01_CMD_GET_DEVID_DATA_SIZE)
+                movw SPI_POINTER_END_H:SPI_POINTER_END_L, X
+
+                ldi XL, low(CMD_GET_DEVID_DATA)
+                ldi XH, high(CMD_GET_DEVID_DATA)
+                
+                ldi ZL, low(INT_SPI_READ)
+                ldi ZH, high(INT_SPI_READ)
+                out SREG, SPI_SREG_SAVE
+                reti
+
+TEST_SET_OP:    cpi SPI_OPCODE_REGISTER, D01_TEST_SET
+                brne TEST_GET_OP
+
+                movw SPI_POINTER_END_H:SPI_POINTER_END_L, NEXT_FRAME_H:NEXT_FRAME_L
+                ldi XL, low(D01_CMD_SET_FRAME_DATA_SIZE)
+                ldi XH, high(D01_CMD_SET_FRAME_DATA_SIZE)
+                add SPI_POINTER_END_L, XL
+                adc SPI_POINTER_END_H, XH
+
+                movw X, NEXT_FRAME_H:NEXT_FRAME_L
+                
+                ldi ZL, low(INT_SPI_WRITE)
+                ldi ZH, high(INT_SPI_WRITE)
+                out SREG, SPI_SREG_SAVE
+                reti
+
+TEST_GET_OP:    cpi SPI_OPCODE_REGISTER, D01_TEST_GET
+                brne TEST_SET_INT_OP
+
+                movw SPI_POINTER_END_H:SPI_POINTER_END_L, NEXT_FRAME_H:NEXT_FRAME_L
+                ldi XL, low(D01_CMD_SET_FRAME_DATA_SIZE)
+                ldi XH, high(D01_CMD_SET_FRAME_DATA_SIZE)
+                add SPI_POINTER_END_L, XL
+                adc SPI_POINTER_END_H, XH
+
+                movw X, NEXT_FRAME_H:NEXT_FRAME_L
+                
+                ldi ZL, low(INT_SPI_READ)
+                ldi ZH, high(INT_SPI_READ)
+                out SREG, SPI_SREG_SAVE
+                reti
+
+TEST_SET_INT_OP:cpi SPI_OPCODE_REGISTER, D01_TEST_SET_INT
+                brne TEST_SET_SR_OP
+
+                lds XL, CMD_GET_INT_DATA
+                ori XL, 1 << D01_CMD_GET_INT_FLAG_TEST_RDY
+                sts CMD_GET_INT_DATA, XL
+                cbi INT_PORT, INT_PIN
+                
+                ldi ZL, low(INT_SPI_END)
+                ldi ZH, high(INT_SPI_END)
+                out SREG, SPI_SREG_SAVE
+                reti
+
+TEST_SET_SR_OP: cpi SPI_OPCODE_REGISTER, D01_TEST_SET_SR
+                brne TEST_GET_SR_OP
+
+                ldi XL, low(TEST_SET_SR_DATA + D01_TEST_SET_SR_DATA_SIZE)
+                ldi XH, high(TEST_SET_SR_DATA + D01_TEST_SET_SR_DATA_SIZE)
+                movw SPI_POINTER_END_H:SPI_POINTER_END_L, X
+
+                ldi XL, low(TEST_SET_SR_DATA)
+                ldi XH, high(TEST_SET_SR_DATA)
+                
+                ldi ZL, low(INT_SPI_WRITE)
+                ldi ZH, high(INT_SPI_WRITE)
+                out SREG, SPI_SREG_SAVE
+                reti
+
+TEST_GET_SR_OP: cpi SPI_OPCODE_REGISTER, D01_TEST_GET_SR
+                brne TEST_SET_LEDS_O
+
+                ldi XL, low(TEST_GET_SR_DATA + D01_TEST_GET_SR_DATA_SIZE)
+                ldi XH, high(TEST_GET_SR_DATA + D01_TEST_GET_SR_DATA_SIZE)
+                movw SPI_POINTER_END_H:SPI_POINTER_END_L, X
+
+                ldi XL, low(TEST_GET_SR_DATA)
+                ldi XH, high(TEST_GET_SR_DATA)
+                
+                ldi ZL, low(INT_SPI_READ)
+                ldi ZH, high(INT_SPI_READ)
+                out SREG, SPI_SREG_SAVE
+                reti
+
+TEST_SET_LEDS_O:cpi SPI_OPCODE_REGISTER, D01_TEST_SET_LEDS
+                brne INVALID_OPCODE
+
+                ldi XL, low(TEST_SET_LEDS_DATA + D01_TEST_SET_LEDS_DATA_SIZE)
+                ldi XH, high(TEST_SET_LEDS_DATA + D01_TEST_SET_LEDS_DATA_SIZE)
+                movw SPI_POINTER_END_H:SPI_POINTER_END_L, X
+
+                ldi XL, low(TEST_SET_LEDS_DATA)
+                ldi XH, high(TEST_SET_LEDS_DATA)
+                
+                ldi ZL, low(INT_SPI_WRITE)
+                ldi ZH, high(INT_SPI_WRITE)
+                out SREG, SPI_SREG_SAVE
+                reti
+
+INVALID_OPCODE: ldi ZL, low(INT_SPI_END)
+                ldi ZH, high(INT_SPI_END)
+                out SREG, SPI_SREG_SAVE
+                reti
+
+INT_SPI_WRITE:  in SPI_DATA_REGISTER, SPDR
+                in SPI_SREG_SAVE, SREG
+
+                st X+, SPI_DATA_REGISTER
+                
+                cp XL, SPI_POINTER_END_L
+                cpc XH, SPI_POINTER_END_H
+                brsh PC + 3
+                out SREG, SPI_SREG_SAVE
+                reti
+
+                cpi SPI_OPCODE_REGISTER, D01_CMD_SET_FRAME
+                brne PC + 7
+                cbi FLAGS, FLAG_TEST_STATE
+                sbi FLAGS, FLAG_FRAME_CHANGED
+                ldi ZL, low(INT_SPI_END)
+                ldi ZH, high(INT_SPI_END)
+                out SREG, SPI_SREG_SAVE
+                reti
+
+                cpi SPI_OPCODE_REGISTER, D01_CMD_SET_BRIGHT
+                brne PC + 7
+                cbi FLAGS, FLAG_TEST_STATE
+                sbi FLAGS, FLAG_BRIGHT_CHANGED
+                ldi ZL, low(INT_SPI_END)
+                ldi ZH, high(INT_SPI_END)
+                out SREG, SPI_SREG_SAVE
+                reti
+
+                cpi SPI_OPCODE_REGISTER, D01_TEST_SET_SR
+                breq PC + 3
+                cpi SPI_OPCODE_REGISTER, D01_TEST_SET_LEDS
+                brne PC + 3
+                sbi FLAGS, FLAG_TEST_STATE
+                sbi FLAGS, FLAG_TEST_COMMAND
+
+                ldi ZL, low(INT_SPI_END)
+                ldi ZH, high(INT_SPI_END)
+                out SREG, SPI_SREG_SAVE
+                reti
+
+INT_SPI_READ:   ld SPI_DATA_REGISTER, X+
+                out SPDR, SPI_DATA_REGISTER
+                in SPI_DATA_REGISTER, SPDR
+                in SPI_SREG_SAVE, SREG
+
+                cp XL, SPI_POINTER_END_L
+                cpc XH, SPI_POINTER_END_H
+                brsh PC + 3
+                out SREG, SPI_SREG_SAVE
+                reti
+
+                cpi SPI_OPCODE_REGISTER, D01_CMD_GET_INT
+                brne PC + 5
+                ldi XL, 0
+                sts CMD_GET_INT_DATA, XL
+                sbi INT_PORT, INT_PIN
+
+                ldi ZL, low(INT_SPI_END)
+                ldi ZH, high(INT_SPI_END)
+                out SREG, SPI_SREG_SAVE
+INT_SPI_END:    reti
 
 //////////////////////////////////////////////////
 
@@ -570,9 +565,9 @@ TEST_SET_SR:    ldi YL, low(TEST_SET_SR_DATA)
                 sts UBRR0H, r17
                 sts UBRR0L, r16
 
-                ldd r7, Y + D01_TEST_SET_SR_COUNT_OFFSET + 0
-                ldd r8, Y + D01_TEST_SET_SR_COUNT_OFFSET + 1
-                ldd r9, Y + D01_TEST_SET_SR_COUNT_OFFSET + 2
+                ldd r20, Y + D01_TEST_SET_SR_COUNT_OFFSET + 0
+                ldd r21, Y + D01_TEST_SET_SR_COUNT_OFFSET + 1
+                ldd r22, Y + D01_TEST_SET_SR_COUNT_OFFSET + 2
                 
                 ldd r19, Y + D01_TEST_SET_SR_BYTE_OFFSET
 
@@ -610,9 +605,9 @@ set_sr_loop0:   lds r15, UCSR0A
 
                 sts UDR0, r19
 
-                sub r7, r16
-                sbc r8, r17
-                sbc r9, r18
+                sub r20, r16
+                sbc r21, r17
+                sbc r22, r18
                 brne set_sr_loop0
 
 set_sr_loop0a:  lds r15, UCSR0A
@@ -624,6 +619,9 @@ set_sr_loop0a:  lds r15, UCSR0A
                 dec r16
                 brne PC - 1
                 cbi LATCH_PORT, LATCH_PIN
+                ldi r16, 0
+                dec r16
+                brne PC - 1
 
                 cbi ENABLE_PORT, ENABLE_PIN ; must be careful what you load in SR because of this
                 ret         
@@ -678,9 +676,9 @@ set_sr_loop4:   lds r15, UCSR0A
                 adc r11, r17
                 adc r12, r18
 
-set_sr_loop4a:  sub r7, r16
-                sbc r8, r17
-                sbc r9, r18
+set_sr_loop4a:  sub r20, r16
+                sbc r21, r17
+                sbc r22, r18
                 brne set_sr_loop4
 
 set_sr_loop5:   lds r15, UCSR0A
@@ -803,6 +801,9 @@ set_leds_loop:  clr r11
                 dec r16
                 brne PC - 1
                 cbi LATCH_PORT, LATCH_PIN
+                ldi r16, 0
+                dec r16
+                brne PC - 1
 
                 cbi ENABLE_PORT, ENABLE_PIN
                 ret
