@@ -19,9 +19,10 @@
 ; GPIOR used for flags
 .equ FLAGS                = GPIOR0
 .equ FLAG_TEST_STATE      = 0
-.equ FLAG_TEST_COMMAND    = 1
-.equ FLAG_FRAME_CHANGED   = 2
-.equ FLAG_BRIGHT_CHANGED  = 3
+.equ FLAG_TEST_SR         = 1
+.equ FLAG_TEST_LEDS       = 2
+.equ FLAG_FRAME_CHANGED   = 3
+.equ FLAG_BRIGHT_CHANGED  = 4
 
 ; PORTS
 .equ PORTB_INIT = (1 << INT_PIN)

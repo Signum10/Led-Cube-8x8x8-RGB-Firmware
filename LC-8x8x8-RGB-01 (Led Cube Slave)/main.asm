@@ -159,7 +159,8 @@ loop_nor_init:  sbi ENABLE_PORT, ENABLE_PIN
                 ldi CURRENT_STAGE, STAGE_MAX - 1
                 ldi CURRENT_LEVEL, LEVEL_MAX - 1
 
-                cbi FLAGS, FLAG_TEST_COMMAND
+                cbi FLAGS, FLAG_TEST_SR
+                cbi FLAGS, FLAG_TEST_LEDS
 
                 ldi r16, TCCR2A_INIT
                 sts TCCR2A, r16
@@ -247,6 +248,9 @@ loop_nor_cont:  mov r16, CURRENT_BRIGHT
                 sts UDR0, r19
                 .endmacro
 
+                ldi r19, 1 << TXC0
+                sts UCSR0A, r19
+
                 MAC_TX_AFTER_4BYTES
                 MAC_TX_AFTER_4BYTES
                 MAC_TX_AFTER_4BYTES
@@ -292,6 +296,10 @@ loop_nor_cont:  mov r16, CURRENT_BRIGHT
 
                 sts UDR0, r19
 
+                lds r16, UCSR0A
+                sbrs r16, TXC0
+                rjmp PC - 3
+
                 rjmp loop_nor
 
 //////////////////////////////////////////////////
@@ -310,18 +318,16 @@ loop_test_init: sbi ENABLE_PORT, ENABLE_PIN
 loop_test:      sbis FLAGS, FLAG_TEST_STATE
                 rjmp loop_nor_init
 
-                sbis FLAGS, FLAG_TEST_COMMAND
-                rjmp loop_test
-                cbi FLAGS, FLAG_TEST_COMMAND
-
-                cpi SPI_OPCODE_REGISTER, D01_TEST_SET_SR
-                brne PC + 3
+                sbis FLAGS, FLAG_TEST_SR
+                rjmp PC + 3
+                cbi FLAGS, FLAG_TEST_SR
                 rcall TEST_SET_SR
-                rjmp loop_test
-
-                cpi SPI_OPCODE_REGISTER, D01_TEST_SET_LEDS
-                brne loop_test
+                
+                sbis FLAGS, FLAG_TEST_LEDS
+                rjmp PC + 3
+                cbi FLAGS, FLAG_TEST_LEDS
                 rcall TEST_SET_LEDS
+                
                 rjmp loop_test
 
 //////////////////////////////////////////////////
@@ -521,11 +527,22 @@ INT_SPI_WRITE:  in SPI_DATA_REGISTER, SPDR
                 reti
 
                 cpi SPI_OPCODE_REGISTER, D01_TEST_SET_SR
-                breq PC + 3
-                cpi SPI_OPCODE_REGISTER, D01_TEST_SET_LEDS
-                brne PC + 3
+                brne PC + 7
                 sbi FLAGS, FLAG_TEST_STATE
-                sbi FLAGS, FLAG_TEST_COMMAND
+                sbi FLAGS, FLAG_TEST_SR
+                ldi ZL, low(INT_SPI_END)
+                ldi ZH, high(INT_SPI_END)
+                out SREG, SPI_SREG_SAVE
+                reti
+
+                cpi SPI_OPCODE_REGISTER, D01_TEST_SET_LEDS
+                brne PC + 7
+                sbi FLAGS, FLAG_TEST_STATE
+                sbi FLAGS, FLAG_TEST_LEDS
+                ldi ZL, low(INT_SPI_END)
+                ldi ZH, high(INT_SPI_END)
+                out SREG, SPI_SREG_SAVE
+                reti
 
                 ldi ZL, low(INT_SPI_END)
                 ldi ZH, high(INT_SPI_END)
