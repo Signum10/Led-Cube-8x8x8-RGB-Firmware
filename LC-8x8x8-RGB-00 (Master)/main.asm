@@ -168,7 +168,86 @@ txrx_spi:       out SPDR, r16
                 ret
 
 ////////////////////////////////////////////////// Led Cube
-proc_LC:        ret
+proc_LC:        sbrs CURRENT_INT, D01_CMD_GET_INT_FLAG_RESET
+                rjmp proc_LC_frame
+
+                ldi r16, 0
+                sts ANIMATION_COUNTER + 0, r16
+                sts ANIMATION_COUNTER + 1, r16
+
+                ldi r16, 0
+                ldi r17, 0
+                ldi r18, 0
+                rcall LC_fill
+                rcall LC_update_frame
+
+proc_LC_frame:  sbrs CURRENT_INT, D01_CMD_GET_INT_FLAG_NEW_FRAME_RDY
+                ret
+
+                ldi r16, D01_CMD_SET_FRAME
+                ldi r24, low(D01_FRAME_SIZE)
+                ldi r25, high(D01_FRAME_SIZE)
+                ldi XL, low(FRAME_BUFFER)
+                ldi XH, high(FRAME_BUFFER)
+                rcall tx_slave_set_x
+
+                rjmp LC_update_frame
+
+LC_update_frame:lds r24, ANIMATION_COUNTER + 0
+                lds r25, ANIMATION_COUNTER + 1
+                adiw r25:r24, 1
+                sts ANIMATION_COUNTER + 0, r24
+                sts ANIMATION_COUNTER + 1, r25
+                sbiw r25:r24, 1
+
+                mov r16, r25
+                lsr r16
+                andi r16, 0b111
+
+                cpi r16, 0
+                brne PC + 4
+                ldi r19, 15
+                ldi r20, 0
+                ldi r21, 0
+
+                cpi r16, 2
+                brne PC + 4
+                ldi r19, 0
+                ldi r20, 15
+                ldi r21, 0
+
+                cpi r16, 4
+                brne PC + 4
+                ldi r19, 0
+                ldi r20, 0
+                ldi r21, 15
+
+                cpi r16, 6
+                brne PC + 4
+                ldi r19, 15
+                ldi r20, 15
+                ldi r21, 15
+
+                sbrs r16, 0
+                rjmp PC + 4
+                ldi r19, 0
+                ldi r20, 0
+                ldi r21, 0
+
+                mov r16, r24
+
+                mov r17, r24
+                lsl r17
+                swap r17
+
+                lsl r24
+                rol r25
+                lsl r24
+                rol r25
+
+                mov r18, r25
+
+                rjmp LC_dot
 
 ; r16 = R
 ; r17 = G
