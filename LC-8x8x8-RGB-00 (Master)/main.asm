@@ -170,6 +170,102 @@ txrx_spi:       out SPDR, r16
 ////////////////////////////////////////////////// Led Cube
 proc_LC:        ret
 
+; r16 = R
+; r17 = G
+; r18 = B
+LC_fill:        andi r16, (1 << D01_LED_COLOR_BITS) - 1
+                andi r17, (1 << D01_LED_COLOR_BITS) - 1
+                andi r18, (1 << D01_LED_COLOR_BITS) - 1
+
+                mov r13, r18
+                swap r13
+                or r13, r17
+
+                mov r14, r16
+                swap r14
+                or r14, r18
+
+                mov r15, r17
+                swap r15
+                or r15, r16
+
+                ldi XL, low(FRAME_BUFFER)
+                ldi XH, high(FRAME_BUFFER)
+                ldi r24, low(D01_FRAME_SIZE)
+                ldi r25, high(D01_FRAME_SIZE)
+                
+                st X+, r13
+                st X+, r14
+                st X+, r15
+                sbiw r25:r24, 3
+                brne PC - 4
+
+                ret
+
+; r16 = X (left -> right)
+; r17 = Y (back -> front)
+; r18 = Z (buttom -> top)
+; r19 = R
+; r20 = G
+; r21 = B
+LC_dot:         andi r16, D01_CUBE_EDGE_SIZE - 1
+                andi r17, D01_CUBE_EDGE_SIZE - 1
+                andi r18, D01_CUBE_EDGE_SIZE - 1
+                andi r19, (1 << D01_LED_COLOR_BITS) - 1
+                andi r20, (1 << D01_LED_COLOR_BITS) - 1
+                andi r21, (1 << D01_LED_COLOR_BITS) - 1
+
+                lsl r16
+                lsl r16
+
+                swap r17
+                lsl r17
+                or r17, r16
+                
+                lsr r18
+                ror r17
+                
+                mov r14, r17
+                mov r15, r18
+                
+                lsr r18
+                ror r17
+
+                add r17, r14
+                adc r18, r15
+
+                lsr r18
+                ror r17
+                
+                ldi XL, low(FRAME_BUFFER)
+                ldi XH, high(FRAME_BUFFER)
+                add XL, r17
+                adc XH, r18
+
+                sbrc r16, 2
+                rjmp LC_dot_odd_add
+
+LC_dot_even_add:swap r21
+                or r21, r20
+                st X+, r21
+
+                ld r16, X
+                andi r16, 0x0F
+                swap r19
+                or r16, r19
+                st X, r16
+                ret
+
+LC_dot_odd_add: ld r16, X
+                andi r16, 0xF0
+                or r16, r21
+                st X+, r16
+
+                swap r20
+                or r20, r19
+                st X, r20
+                ret
+
 ////////////////////////////////////////////////// Test Slave
 proc_TT:        sbrs CURRENT_INT, DTT_CMD_GET_INT_FLAG_SEND_PORT
                 rjmp proc_TT_get
